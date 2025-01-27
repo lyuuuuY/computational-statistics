@@ -1,3 +1,17 @@
+# Latex installation
+.TinyTeX/
+bin/
+
+# Docker
+.config/
+.local/
+
+# Knit generated files
+*.html
+*.tex
+*.pdf
+.wget-hsts
+
 # History files
 .Rhistory
 .Rapp.history

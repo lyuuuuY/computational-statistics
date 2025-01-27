@@ -1,0 +1,230 @@
+---
+title: "Question 1: Maximization of a function in one variable"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+
+```{r include=FALSE}
+# -------- OPTIMIZATION ALGORITHMS --------
+
+
+#' Bisection Method for Finding a Maximum
+#'
+#' This function uses the bisection method to find the maximum value of a given function `g` 
+#' within the interval `[a, b]`.
+#'
+#' @param g A function representing the objective function to maximize.
+#' @param g.prime A function representing the derivative of `g`.
+#' @param a A numeric value specifying the lower bound of the interval.
+#' @param b A numeric value specifying the upper bound of the interval.
+#' @param tol A numeric value specifying the tolerance for stopping the iteration. Default is 0.001.
+#' 
+#' @return A data frame containing the iteration history with columns for the iteration number, 
+#' the current `x` value, `g(x)`, and `g.prime(x)`.
+mybisection <- function(g, g.prime, a, b, tol = 0.001) {
+  
+  xt <- c(0,0)
+  xt[1] <- (a+b)/2
+  
+  history_df <- data.frame(iter = numeric(0), x = numeric(0), g = numeric(0), g.prime = numeric(0))
+  
+  i <- 1
+  while (abs(xt[2] - xt[1]) > tol) {
+    
+    
+    deriv_a <- g.prime(a)
+    deriv_b <- g.prime(b)
+    deriv_xt <- g.prime(xt[1])
+    
+    if((deriv_a * deriv_xt) < 0){
+      b <- xt[1]
+      xt[2] <- xt[1]
+      xt[1] <- (a+b)/2
+    }
+    else{
+      a <- xt[1]
+      xt[2] <- xt[1]
+      xt[1] <- (a+b)/2
+    }
+    
+    # Save current values for x, g and gprime.    
+    history_df[nrow(history_df) + 1, ] <- c(i, xt[1], g(xt[1]), g.prime(xt[1]))
+    i <- i + 1
+
+  }
+  return(history_df)
+}
+
+
+#' Secant Method for Finding a Root
+#'
+#' This function uses the secant method to find a root of the given function `g`, 
+#' starting from an initial guess and iterating until the specified tolerance is reached.
+#'
+#' @param g A function representing the objective function for which the root is sought.
+#' @param g.prime A function representing the derivative of `g`.
+#' @param initial.guess A numeric value specifying the initial guess for the root.
+#' @param tol A numeric value specifying the tolerance for stopping the iteration. Default is 0.001.
+#' 
+#' @return A data frame containing the iteration history with columns for the iteration number, 
+#' the current `x` value, `g(x)`, and `g.prime(x)`.
+mysecant <- function(g, g.prime, initial.guess, tol = 0.001) {
+  
+  xt_secant <- c(initial.guess, 0)
+  history_df <- data.frame(iter = numeric(0), x = numeric(0), g = numeric(0), g.prime = numeric(0))
+  
+  i <- 1
+  while (abs(xt_secant[2] - xt_secant[1]) > tol){
+    
+    deriv_xt <- g.prime(xt_secant[1])
+    deriv_xt_minus1 <- g.prime(xt_secant[2])
+    x_tplus1 <- xt_secant[1] - deriv_xt * (xt_secant[1]-xt_secant[2])/(deriv_xt-deriv_xt_minus1)
+    xt_secant[2] <- xt_secant[1]
+    xt_secant[1] <- x_tplus1
+    
+    # Save current values for x, g and gprime. 
+    history_df[nrow(history_df) + 1, ] <- c(i, xt_secant[1], g(xt_secant[1]), g.prime(xt_secant[1]))
+    
+  }
+  return(history_df)
+  
+  
+}
+```
+
+
+Consider the function
+
+$$
+g(x) = \frac{\log{(x+1)}}{x^{\frac{3}{2}} + 1}
+$$
+
+A plot of this function in the $[0, 4]$ interval is shown in the following image.
+
+
+```{r, fig.height=2.5, fig.width=4, fig.align="center", echo=FALSE, out.extra='trim=0 0 0 0, clip'}
+# Adjust margins to reduce white space
+par(mar = c(4, 4, 2, 1))  # Bottom, left, top, right margins (in lines)
+
+g <- function(x) {
+  num = log(x + 1)
+  den = x^(3/2) + 1
+  return(num / den)
+}
+
+xvalues <- seq(0, 4, length.out = 50)
+gvalues <- g(xvalues)
+
+# Define custom y-axis ticks
+ytick_interval <- 0.1  # Set desired interval between ticks
+yticks <- seq(0, max(gvalues), by = ytick_interval)  # Create custom ticks
+
+# Create the plot
+plot(
+  xvalues, gvalues, 
+  type = "l", col = "blue", lwd = 2,
+  xlab = "x", ylab = "g(x)", 
+  cex.lab = 1.2, cex.axis = 1.1, las = 1,
+  yaxt = "n"  # Suppress default y-axis
+)
+
+# Add custom y-axis ticks
+axis(2, at = yticks, labels = round(yticks, 2), las = 1)  # Use rounded labels
+grid(col = "gray", lty = "dotted", lwd = 1)
+
+# Reset margins after the plot if needed for other plots
+par(mar = c(5, 4, 4, 2) + 0.1)
+
+```
+
+Its derivative, $g'(x)$, is given by
+
+$$
+g'(x) = \frac{1}{\left(x + 1\right) \left(x^{\frac{3}{2}} + 1\right)} - \frac{3 \sqrt{x} \ln\left(x + 1\right)}{2 \left(x^{\frac{3}{2}} + 1\right)^{2}}
+$$
+whose plot in the interval $[0, 4]$ is shown below.
+
+```{r, fig.height=2.5, fig.width=4, fig.align="center", echo=FALSE, out.extra='trim=0 0 0 0, clip'}
+
+par(mar = c(4, 4, 2, 1))  # Bottom, left, top, right margins (in lines)
+
+
+gprime <- function(x) {
+  return(1 / ((x + 1) * (x^(3 / 2) + 1)) - (3 * sqrt(x) * log(x + 1)) / (2 * (x^(3 / 2) + 1)^2))
+}
+
+xvalues <- seq(0, 4, length.out = 50)
+gprimevalues <- gprime(xvalues)
+
+# Define custom y-axis ticks
+ytick_interval <- 0.2  # Set desired interval between ticks
+yticks <- seq(0, max(gprimevalues), by = ytick_interval)  # Create custom ticks
+
+
+plot(
+  xvalues, gprimevalues, 
+  type = "l", col = "blue", lwd = 2,
+  xlab = "x", ylab = "g'(x)", 
+  cex.lab = 1.2, cex.axis = 1.1, las = 1,
+  yaxt = "n"  # Suppress default y-axis
+)
+
+# Add custom y-axis ticks
+axis(2, at = yticks, labels = round(yticks, 2), las = 1)  # Use rounded labels
+grid(col = "gray", lty = "dotted", lwd = 1)
+
+# Reset margins after the plot if needed for other plots
+par(mar = c(5, 4, 4, 2) + 0.1)
+
+
+abline(h = 0, col = "black", lty = "dashed", lwd = 2)
+```
+l
+Notice a black dashed horizontal line at $g'(x) = 0$ is included in the plot
+to visually inspect where in the x-axis derivative becomes $0$.
+
+Next, we present the evolution of the **bisection** method (implementation given in 
+the **Appendix** section) for finding the value of $x$ that maximizes $g(x)$.
+
+
+```{r echo=FALSE}
+history_df <- mybisection(g, gprime, 0, 2)
+history_df <- round(history_df, 3)
+knitr::kable(
+  history_df,
+  caption = "Evolution of the bisection algorithm for $a=0$ and $b=2$."
+)
+
+```
+
+The bisection algorithm was run using $a=0$ and $b=2$, where $a$ and $b$ denote
+the lower and upper bounds, respectively. 
+
+Simiarly, the following table contains the evolution of the **secant** method.
+
+
+
+```{r echo=FALSE}
+history_df <- mysecant(g, gprime, 1)
+history_df <- round(history_df, 3)
+knitr::kable(
+  history_df,
+  caption = "Evolution of the secant algorithm for $x_0=0$"
+)
+
+```
+
+The secant method was run using $0$ as the initial guess.
