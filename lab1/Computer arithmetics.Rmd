@@ -3,7 +3,6 @@ title: "Question 2: Computer arithmetics"
 output:
   pdf_document: 
     keep_tex: true
-  html_document: default
 editor_options: 
   markdown: 
     wrap: 72
@@ -17,8 +16,6 @@ knitr::opts_chunk$set(fig.pos = 'H')
 ```
 
 ```{r include=FALSE}
-# -------- OPTIMIZATION ALGORITHMS --------
-
 
 #' Custom Variance Calculation 
 #'
