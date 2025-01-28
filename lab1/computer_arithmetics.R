@@ -15,22 +15,28 @@ myvar <- function(x){
 
 
 
-myvar_res <- numeric(100)
-var_res <- numeric(100)
-Y <- numeric(100)
-i_values <- 1:100
+myvar_res <- numeric(10000)
+var_res <- numeric(10000)
+Y <- numeric(10000)
+i_values <- 1:10000
 set.seed(12345)
+x <- rnorm(10000,  10^8, 1)
 for (i in i_values) {
-  x <- rnorm(10000,  10^8, 1)
-  myvar_res[i] <- myvar(x)
-  var_res[i] <- var(x)
+  sub_x <- x[1:i]
+  myvar_res[i] <- myvar(sub_x)
+  var_res[i] <- var(sub_x)
   Y[i] <- myvar_res[i] - var_res[i]
   
 }
 
-plot(i_values,Y,type = "l", main = "Difference between myvar(Xi) and var(Xi)",
+plot(i_values,Y, main = "Difference between myvar(Xi) and var(Xi)",
      xlab = "i (Subset)", ylab = "Difference")
 
+
+
+plot(1:100, Y[1:100], type = "b", col = "blue",
+     main = "Details of the differences in the first 100 samples",
+     xlab = "i", ylab = "Y_i")
 
 myvar_stable <- function(x) {
   n <- length(x)
@@ -40,18 +46,18 @@ myvar_stable <- function(x) {
 }
 
 
-myvar_stable_res <- numeric(100)
-var_res_2 <- numeric(100)
-Y_stable <- numeric(100)
+myvar_stable_res <- numeric(10000)
+var_res_2 <- numeric(10000)
+Y_stable <- numeric(10000)
 for (i in i_values) {
-  x <- rnorm(10000,  10^8, 1)
-  myvar_stable_res[i] <- myvar_stable(x)
-  var_res_2[i] <- var(x)
+  sub_x <- x[1:i]
+  myvar_stable_res[i] <- myvar_stable(sub_x)
+  var_res_2[i] <- var(sub_x)
   Y_stable[i] <- myvar_stable_res[i] - var_res_2[i]
   
 }
 
-plot(i_values,Y_stable,type = "l", main = "Difference between myvar_stable(Xi) and var(Xi)",
+plot(i_values,Y_stable, main = "Difference between myvar_stable(Xi) and var(Xi)",
      xlab = "i (Subset)", ylab = "Difference",ylim = c(-0.01,0.01))
 
 # When the mean of the data is very large (e.g.,10^8) but the variance is small (e.g., 1), 

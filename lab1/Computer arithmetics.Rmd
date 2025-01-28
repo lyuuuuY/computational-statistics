@@ -1,0 +1,196 @@
+---
+title: "Question 2: Computer arithmetics"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r include=FALSE}
+# -------- OPTIMIZATION ALGORITHMS --------
+
+
+#' Custom Variance Calculation 
+#'
+#' This function calculates the variance of a numeric vector using a scaled formula to mitigate numerical instability. 
+#' The data is first normalized by dividing by the maximum value, then the variance is computed using the standard formula, 
+#' and finally scaled back to the original units.
+#' 
+#' @param x A numeric vector for which the sample variance is to be calculated.
+#'
+#' @return A numeric value representing the estimated variance of the input vector. 
+myvar <- function(x){
+  
+  max_x <- max(x)
+  x <- x / max_x
+  
+  
+  n <- length(x)
+  squaresum <- sum(x^2)
+  sum_x <- sum(x)
+  res <- (squaresum - (sum_x^2)/n)/(n-1)
+  
+  
+  return(res * (max_x)^2)
+}
+```
+
+```{r include=FALSE}
+#' Stable Variance Calculation
+#'
+#' This function computes the sample variance of a numeric vector {x} in a numerically stable way, 
+#' by centering each element around the mean before summing the squared differences.
+#' 
+#' @param x A numeric vector for which the sample variance is to be calculated.
+#'
+#' @returns A numeric value representing the estimated variance of the input vector. 
+myvar_stable <- function(x) {
+  n <- length(x)
+  mean_x <- mean(x)
+  sum_sq_diff <- sum((x - mean_x)^2)
+  return(sum_sq_diff / (n - 1))
+}
+```
+
+In `myvar()` function
+
+$$
+\mathrm{Var}(\vec{x}) = \frac{1}{n-1} \left( \sum_{i=1}^n x_i^2 - \frac{1}{n} \left( \sum_{i=1}^n x_i \right)^2 \right)
+$$
+
+
+
+
+```{r include=FALSE}
+set.seed(12345)
+x <- rnorm(10000,  10^8, 1)
+```
+
+Let $x$ be a vector containing 10,000 random numbers with a mean of
+$10^8$ and a variance of 1. The first 10 elements of $x$ are shown
+below:
+
+```{r echo=FALSE}
+print(head(x,10))
+```
+
+We define $Y$ as the difference between $\mathrm{myvar}(X_i)$ and
+$\mathrm{var}(X_i)$, where $X_i = \{x_1, \dots, x_i\}$ for
+$i = 1,\dots,10000$, and $\mathrm{var}(X_i)$ is the standard variance
+function in R. Next, we plot how $Y_i$ changes as $i$ increases. The
+resulting figure is shown below.
+
+```{r echo=FALSE}
+myvar_res <- numeric(10000)
+var_res <- numeric(10000)
+Y <- numeric(10000)
+i_values <- 1:10000
+
+for (i in i_values) {
+  sub_x <- x[1:i]
+  myvar_res[i] <- myvar(sub_x)
+  var_res[i] <- var(sub_x)
+  Y[i] <- myvar_res[i] - var_res[i]
+  
+}
+```
+
+
+```{r echo=FALSE, fig.height=4, fig.width=6}
+plot(i_values,Y, main = "Difference between myvar(Xi) and var(Xi)",
+     xlab = "i (Subset)", ylab = "Difference",lwd = 1,
+      cex.lab = 1.2, cex.axis = 1.1, las = 1)
+
+```
+\clearpage
+**Conclusion of plot**
+
+The figure is a scatter plot with the subset size $i$ on the x-axis
+(ranging from 1 to 10,000) and the difference $Y$ on the y-axis. Each point represents the difference
+between the custom `myvar()` function and R’s built-in `var()` function
+when using the first $i$ observations of the data. Key visual features
+include:
+
+1.  Multiple curved “bands”: The points cluster into several arcs, some
+    in the positive region (up to around +3), and some in the negative
+    region (down to around -3).
+
+2.  A near-horizontal “line” or “band”: In some ranges of $i$, the
+    points lie roughly on a constant difference level, not changing much
+    as $i$ increases.
+
+**Explanation of the Patterns**
+
+The core reason is that the custom function `myvar()` first scales the
+current subset by its maximum value (dividing by $max(x)$) before computing
+the variance, and then rescales by multiplying back at the end. By
+contrast, R’s `var()` function computes the variance directly on the
+original data.
+
+Because the data are on the order of $10^8$, directly computing
+$\sum x^2 - \frac{(\sum x)^2}{n}$ can lead to catastrophic cancellation
+(subtracting two large numbers). Scaling the data by the maximum value
+before computing the variance can mitigate some numerical issues, but
+also creates these distinct patterns:
+
+1.  If new data points do not exceed the current maximum, the scaling
+    factor in `myvar()` remains unchanged, so the difference is a
+    constant amount. On the plot, this appears as a near-horizontal line
+    or “band.”
+
+2.  As soon as a larger data point arrives, the maximum value jumps,
+    which changes the scaling factor in `myvar()`. This causes a sudden
+    shift in the difference. Subsequently, for a range of $i$ values
+    with that fixed new maximum, the difference will evolve smoothly
+    again, forming a curved arc, until the next time a bigger maximum is
+    found.
+
+To further refine our variance estimator, we will adopt a formula that
+exactly matches R’s built-in `var()`. Below, we present the
+revised approach and demonstrate how it produces identical results to
+`var()`.
+
+The improved formula is:
+
+$$
+\mathrm{Var}(x) = \frac{1}{n-1} \sum_{i=1}^{n} (x_i - \bar{x})^2 
+$$
+
+Still, we define $Y$ as the difference between  $\mathrm{myvar\_stable}(X_i)$ and
+$\mathrm{var}(X_i)$, where $X_i = \{x_1, \dots, x_i\}$ for
+$i = 1,\dots,10000$, and $\mathrm{var}(X_i)$ is the standard variance
+function in R. Next, we plot how $Y_i$ changes as $i$ increases. The
+resulting figure is shown below.
+
+```{r echo=FALSE}
+myvar_stable_res <- numeric(10000)
+var_res_2 <- numeric(10000)
+Y_stable <- numeric(10000)
+for (i in i_values) {
+  sub_x <- x[1:i]
+  myvar_stable_res[i] <- myvar_stable(sub_x)
+  var_res_2[i] <- var(sub_x)
+  Y_stable[i] <- myvar_stable_res[i] - var_res_2[i]
+  
+}
+```
+
+
+```{r echo=FALSE, fig.height=4, fig.width=6}
+plot(i_values,Y_stable, main = "Difference between myvar_stable(Xi) and var(Xi)",
+     xlab = "i (Subset)", ylab = "Difference",ylim = c(-0.01,0.01),lwd = 1,
+      cex.lab = 1.2, cex.axis = 1.1
+     )
+```
+  
+The improved formula is numerically more stable because it first “centers” each observation $x_i$ by subtracting the mean $\bar{x}$ before squaring. This step avoids the large intermediate values that can result when squaring data with very large means, reducing potential floating-point round‐off errors. As a result, the variance estimate remains accurate even for data with large magnitudes.
