@@ -1,0 +1,232 @@
+---
+title: "Question 1: Optimization of a two_dimentional function"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+library(MASS)
+library(knitr)
+```
+
+```{r include=FALSE}
+#' Two-dimentional function
+#'
+#' @param x Input value x for one dimention.
+#' @param y Input value y for another dimention.
+#'
+#' @returns The result of this function .
+two_dim_func <- function(x,y){
+  a <- sin(x+y)
+  b <- (x-y)^2
+  res <- a + b -1.5*x + 2.5*y + 1
+  return(res)
+}
+
+
+#' Gradient of the function
+#'
+#' This function computes the Gradient of the two_dim function.
+#'
+#' @param x Input value x for one dimention.
+#' @param y Input value y for another dimention.
+#'
+#' @returns A vector contains partial derivative w.r.t. x and y.
+Gradient <- function(x,y){
+  gradient_x <- cos(x + y) + 2 * (x - y) - 1.5
+  gradient_y <- cos(x + y) - 2 * (x - y) + 2.5
+  gradient <- c(gradient_x, gradient_y)
+  return(gradient)
+}
+
+#' Hessian matrix of the function
+#'
+#' This function computes the hessian matrix of the two_dim function.
+#' 
+#' @param x Input value x for one dimention.
+#' @param y Input value y for another dimention .
+#'
+#' @returns A matrix which is the hessian matrix of the two_dim function.
+Hessian <- function(x,y){
+  xx <- -sin(x + y) + 2
+  xy <- -sin(x + y) - 2
+  yx <- -sin(x + y) - 2
+  yy <- -sin(x + y) + 2
+  
+  hessian <- matrix(c(xx,xy,yx,yy),nrow = 2,byrow = TRUE)
+  return(hessian)
+}
+
+#' Iteration function
+#'
+#' This function computes one step iteration with Newton Method.
+#'
+#' @param xy A vector representing current xy value to be updated.
+#'
+#' @returns A vector representing new xy value after update.
+step <- function(xy){
+  x <- xy[1]
+  y <- xy[2]
+  gradient <- Gradient(x,y)
+  hessian <- Hessian(x,y)
+  if (abs(det(hessian)) < 1e-12) {
+    hessian_inv <- MASS::ginv(hessian)
+  }else{
+    hessian_inv <- solve(hessian)
+  }
+  new_xy <- xy - hessian_inv %*% gradient
+  return(as.vector(new_xy))
+}
+
+#' Newton Method for finding the global minimum
+#'
+#' @param starting_value A numeric vecot specifying the starting value for 
+#' finding the global minimum.
+#' @param stopping A numeric value specifying the tolerance for stopping the
+#'  iteration. Default is 0.001
+#'
+#' @returns A object containing the iteration history, final gradient values and
+#' eigenvalues of hessian matrix.
+newton_iteration <- function(starting_value,stopping=0.001){
+  
+  xy <- starting_value
+  
+  history_df <- data.frame(
+    iter = numeric(0), 
+    x = numeric(0), 
+    y = numeric(0),
+    f = numeric(0)
+  )
+
+  xy_new <- step(xy)
+  
+  # Save first iteration values for x, y and f. 
+  i <- 1
+  history_df[nrow(history_df) + 1, ] <- c(i, xy_new[1],xy_new[2],two_dim_func(xy_new[1],xy_new[2]) )
+  i <- 2
+  while (max(abs(xy_new - xy)) > stopping) {
+    
+    xy <- xy_new
+    xy_new <- step(xy)
+    
+    # Save current iteration values for x, y and f. 
+    history_df[nrow(history_df) + 1, ] <- c(i, xy_new[1],xy_new[2],two_dim_func(xy_new[1],xy_new[2]) )
+    i <- i+1
+  }
+  
+  if ((xy_new[1] < -1.5 || xy_new[1] > 4) ||
+      (xy_new[2] < -3   || xy_new[2] > 4)) {
+    message("Iteration finished, but xy is out of bounds.")
+    return(xy_new)
+  }
+  
+  final_gradient <- Gradient(xy_new[1],xy_new[2]) 
+  final_hessian <- Hessian(xy_new[1],xy_new[2])
+  eigen_hessian <- eigen(final_hessian)$value
+  function_value <- two_dim_func(xy_new[1],xy_new[2])
+  
+  print(sprintf("the gradient is: (%.4f,%.4f)",final_gradient[1],final_gradient[2]))
+  if(all(round(final_gradient)==0)){
+    
+    cat("the Hessian matrix is:","\n")
+    print(final_hessian)
+    cat("the eigenvalues are: ",eigen(final_hessian)$value,"\n")
+    if(all(eigen_hessian>0)){
+      cat("find the local minimun:",function_value,",at point:",xy_new)
+    }
+    else if(all(eigen_hessian<0)){
+      cat("find the local maximun: ",function_value, ",at point:",xy_new)
+    }
+    else{
+      cat("find the saddle point:",xy_new)
+    }
+  }
+  results <- list(
+    history_df = history_df,
+    final_gradient = round(final_gradient,4),
+    eigen_hessian = round(eigen_hessian,2),
+    function_value = round(function_value,4),
+    final_point = round(xy_new,2)
+  )
+  class(results) <- "results"
+  return(results)
+}
+```
+
+
+For function:
+
+$$
+f_{x,y} = \sin(x+y)+(x-y)^2-1.5x+2.5y+1
+$$
+
+The contour plot is shown below:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+x <- seq(-1.5, 4, length.out = 100)
+y <- seq(-3, 4, length.out = 100)
+z <- outer(x,y,two_dim_func)
+par(mar = c(4, 4, 2, 1))
+contour(x,y,z,nlevels = 30)
+par(mar = c(5, 4, 4, 2) + 0.1)
+```
+The gradien of this function is:
+$$
+f'(x, y) = \begin{pmatrix}
+\cos(x + y) + 2(x - y) - 1.5 \\
+\cos(x + y) - 2(x - y) + 2.5
+\end{pmatrix}
+$$
+
+
+
+The Hessian matrix of this function is:
+$$
+f''\left( \begin{pmatrix} xx & xy \\ yx & yy \end{pmatrix} \right) 
+= \begin{pmatrix} 
+-\sin(x + y) + 2 & -\sin(x + y) - 2 \\ 
+-\sin(x + y) - 2 & -\sin(x + y) + 2 
+\end{pmatrix}
+$$
+
+
+
+First we set some starting values and iterate over them separately,the result is 
+shown below:
+
+```{r include=FALSE}
+starting_value1 <- c(-1.5,-1)
+starting_value2 <- c(0,1)
+starting_value3 <- c(2,2)
+starting_values <- list(starting_value1, starting_value2, starting_value3)
+starting_values_str <- sapply(starting_values, function(v) paste0("(", v[1], ", ", v[2], ")"))
+all_res <- lapply(starting_values, newton_iteration)
+eigenvalues <- lapply(all_res, function(res) res$eigen_hessian)
+eigenvalues_str <- unlist(lapply(eigenvalues, function(v) paste0("(", paste(v, collapse = ", "), ")")))
+function_values <- unlist(lapply(all_res, function(res) res$function_value))
+end_xy <- unlist(lapply(all_res, function(v) paste0("(", v$final_point[1], ", ", v$final_point[2], ")")))
+```
+
+```{r echo=FALSE}
+results <- data.frame(
+  Starting.Value = starting_values_str,
+  Eigenvalues = eigenvalues_str,
+  Function.Values = function_values,
+  Stop.Point = end_xy
+)
+
+kable(results,caption = "Optimization Results",align="l")
+
+```
+As we can see from the table, the first and third points get the local minimum, because the eigenvalue of the final hessian matrix is greater than zero. According to the contour plot, the position where the first point finally stops iteration is at the bottom of the lower left corner, and it can be preliminarily determined that -1.9132 is the global minimum. 
+
+So the third point can only be a local minimum, and the second point converges to gradient 0, but since the Hessian matrix is indefinite, this is a saddle point
