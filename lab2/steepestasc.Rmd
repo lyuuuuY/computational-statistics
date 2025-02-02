@@ -1,0 +1,233 @@
+---
+title: "Question 2: Maximum likelihood"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+
+```{r include=FALSE}
+#  ---------------- Factory functions ----------------
+
+#' Creates an alpha scheduler function for step size adjustment.
+#'
+#' @param factor Numeric. Reduction factor for alpha when no improvement 
+#' is observed. Default is 0.1.
+#'
+#' @return A function that adjusts alpha based on function evaluations.
+make_alpha_scheduler <- function(factor = 0.1) {
+  
+  scheduler <- function(alpha, val, newval) {
+       
+      if (val < newval) {
+        # If val < newval (improvement), do nothing.
+        return(alpha)
+      } else {
+        # Otherwise, reduce ´alpha´.
+        return(alpha * factor)
+      }
+    }
+  return(scheduler)
+} 
+
+#' Creates a log-likelihood function for logistic regression.
+#'
+#' @param x: A numeric vector of predictor values.
+#' @param y: A numeric vector of binary response values (0 or 1).  
+#'
+#' @return: A function that computes the log-likelihood given a parameter vector TH.
+make_llik <- function(x, y) {
+  
+  llik <- function(TH) {
+    theta_0 <- TH[1]
+    theta_1 <- TH[2]
+    p <- 1 / (1 + exp(- theta_0 - theta_1 * x))
+    log_likelihood <- sum(y * log(p) + (1 - y) * log(1 - p))
+    
+    return(log_likelihood)
+  }
+  
+  return(llik)
+}
+
+
+#' Creates the gradient function of the log-likelihood function for logistic regression.
+#'
+#' @param x A numeric vector of predictor values.
+#' @param y A numeric vector of binary response values (0 or 1).
+#'
+#' @return A function that computes the gradient given a parameter vector TH.
+make_grad <- function(x, y) {
+  
+  grad <- function(TH) {
+    theta_0 <- TH[1]
+    theta_1 <- TH[2]
+    
+    p <- 1 / (1 + exp(-(theta_0 + theta_1 * x)))
+    gradient <- c(sum(y - p), sum((y - p) * x))
+    
+    return(gradient)
+  }
+  
+  return(grad)
+}
+
+
+#  ---------------- Steepest ascent ----------------
+
+
+#' Performs steepest ascent optimization with optional step-size adaptation.
+#'
+#' @param f Function. The objective function to maximize.
+#' @param g Function. The gradient function.
+#' @param x0 Numeric. Initial point.
+#' @param eps Numeric. Convergence threshold. Default is 1e-8.
+#' @param alpha.0 Numeric. Initial step size. Default is 1.
+#' @param alpha.scheduler Function. Step-size adjustment strategy. 
+#' Default is NULL (constant step size).
+#'
+#' @return A data frame tracking the iteration history.
+steepestasc <- function(
+    f, 
+    g, 
+    x0, 
+    eps = 1e-8, 
+    alpha.0 = 1, 
+    alpha.scheduler = NULL
+ ){
+  
+  history <- data.frame(
+    iter = numeric(0), 
+    L = numeric(0),
+    conv = numeric(0),
+    alpha = numeric(0)
+  )
+
+  # If `alpha.scheduler` is NULL, use a constant value.
+  if (is.null(alpha.scheduler)) {
+    alpha.scheduler <- function(alpha, val, newval) alpha
+  }
+  
+  # Define `step` function.
+  step <- function(x, alpha) x + (alpha * g(x))
+  
+  # Perform a initial step and save it.
+  x <- x0  
+  alpha <- alpha.0 
+  newx <- step(x, alpha) 
+  conv <- sum((x - newx) * (x - newx))
+  
+  history[nrow(history) + 1, ] <- c(0, f(x), NA, NA)
+  history[nrow(history) + 1, ] <- c(1, f(newx), conv, alpha)
+  
+  i <- 1
+  while(conv > eps){
+    
+    # Update `alpha`.
+    alpha <- alpha.scheduler(alpha, f(x), f(newx))
+    
+    # Update `x` to previous iteration's new value.
+    x <- newx
+    newx <- step(x, alpha)
+    
+    # Update convergence criterion.
+    conv <- sum((x-newx)*(x-newx))
+    
+    # Save current iteration.
+    i <- i + 1
+    history[nrow(history) + 1, ] <- c(i, f(newx), conv, alpha)
+    
+  }
+  
+  return(list(x=newx, history=history))
+  
+}
+```
+
+
+
+## Computing the ML estimator 
+
+The ML estimator for the logistic regression model is computed by maximizing
+the log-likelihood function given by
+
+$$
+\mathcal{L}(\mathbf{\theta}) = \sum_{i=1}^n \left\{y_i \log{ \left[\left(1 + \exp(-\theta_0 - \theta_1x_i)\right)^{-1}\right] + (1 - y_i) \log{\left[1 - (1 + \exp(\theta_0 + \theta_1x_i))^{-1} \right]}}     \right\}
+$$
+
+where $\left\{x_i, y_i \right\}_{i=1}^n$ is the observed dataset and $\mathbf{\theta} = \left(\theta_0, \theta_1 \right)^T$. Its gradient is,
+
+
+$$
+\nabla\mathcal{L} = \sum_{i=1}^n \left\{y_i - \frac{1}{1 + \exp(\theta_0 - \theta_1x_i)} \right\} \begin{pmatrix}
+  1   \\
+  x_i \\
+\end{pmatrix}
+$$
+
+The steepest ascent method updates $\theta$ iteratively in the direction of $\nabla\mathcal{L}$. That is,
+
+$$
+\theta_{t+1} = \theta_{t} + \alpha_{t}\nabla\mathcal{L}
+$$
+
+where $\alpha_{t}$ is the size of the step size at iteration $t$. The following
+table summarizes the execution of this method for the maximization of 
+$\mathcal{L}$. 
+
+```{r include=FALSE}
+x <- c(0, 0, 0, 0.1, 0.1, 0.3, 0.3, 0.9, 0.9, 0.9)
+y <- c(0, 0, 1, 0, 1, 1, 1, 0, 1, 1)
+
+# Define the log-likelihood and gradient functions
+llik <- make_llik(x, y)
+grad <- make_grad(x, y)
+
+# Set an initial guess for theta
+theta_init <- c(-0.2, 1)
+
+# Perform optimization
+result <- steepestasc(
+  f = llik, 
+  g = grad, 
+  x0 = theta_init, 
+  eps = 1e-3, 
+  alpha.0 = 1, 
+  alpha.scheduler = make_alpha_scheduler(0.5)
+)
+```
+
+```{r echo=FALSE}
+history <- round(result$history, 3)
+knitr::kable(
+  history,
+  caption = "Evolution of the steepest ascent algorithm for $(\\theta_0, \\theta_1) = (-0.2, 1)$"
+)
+```
+
+The algorithm was executed using a step-size reduction strategy. In particular,
+$\alpha$ is halved (i.e., reduced by a factor of 2) whenever the the 
+log-likelihood decreases between iterations. For our case, this happens between 
+iteration $0$ and $1$, leading to $\alpha = 0.5$ in iteration $2$.
+
+To further illustrate this strategy, the following table presents the execution 
+results when using a reduction factor of $4$ (i.e., alpha is reduced to a 
+quarter of its value).
+
+
+
+
+
+
+
