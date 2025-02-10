@@ -1,0 +1,174 @@
+---
+title: "Question 2: Bivariate normal and normal mixture distribution"
+output:
+  pdf_document: 
+    keep_tex: true
+    latex_engine: xelatex
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+library(mvtnorm)
+```
+
+```{r include=FALSE}
+#' Box_Muller method for generating norm distribution
+#'
+#' @param n Number of samples
+#' @param mu Mean vector of distribution
+#' @param sigma Covariance matrix of distribution
+#'
+#' @returns Matrix of samples
+box_muller <- function(n,mu,sigma){
+  u <- runif(n,0,1)
+  A <- runif(n,0,2*pi)
+  x1 <- sqrt(-2*log(u)) * cos(A)
+  x2 <- sqrt(-2*log(u)) * sin(A)
+  x_standard <- cbind(x1,x2)
+  w <- chol(sigma)
+  Y <- x_standard%*%t(w) + matrix(rep(mu, each = n), ncol = 2)
+  return(Y)
+}
+
+#' Normal mixture distribution generator 
+#'
+#' @param n Number of samples
+#' @param prob The probability that sample belongs to the first distribution
+#' @param mu1 Mean vector of first distribution
+#' @param mu2 Mean vector of second distribution
+#' @param sigma1 Covariance matrix of first distribution
+#' @param sigma2 Covariance matrix of second distribution
+#'
+#' @returns Matrix of samples
+mix_normal <- function(n,prob,mu1,mu2,sigma1,sigma2){
+  
+  # get the number of observations of each density
+  density1_n <- floor(n*prob)
+  density2_n <- n-density1_n
+  
+  sample1 <- box_muller(density1_n,mu1,sigma1)
+  sample2 <- box_muller(density2_n,mu2,sigma2)
+  
+  # add lable to each component
+  sample1 <- cbind(sample1,1)
+  sample2 <- cbind(sample2,2)
+  
+  samples <- rbind(sample1,sample2)
+  return(samples)
+}
+```
+
+The time to generate 10000000 random vectors using the box_muller method
+is:
+
+```{r echo=FALSE}
+mu <- c(0,0)
+sigma <- matrix(c(0.6,0,0,0.6),nrow = 2)
+system.time(box_muller(10000000,mu,sigma))
+```
+
+Now we generate again 10000000 random vectors with package `mvtnorm`, because `rnorm()` can only generate one-dimensional normal distribution data. `rmvnorm()` directly generates data that conforms to the target distribution, avoiding additional matrix operations.
+
+So the time to generate data using `rmvnorm()` is:
+
+```{r echo=FALSE}
+system.time(rmvnorm(10000000,mu,sigma,method = "chol"))
+```
+By comparing the results with a, we can see that using rmvnorm() is faster to generate random vectors.
+
+
+Next, we generate a bivariate normal mixture distribution using two probability densities, and the plot is shown below:
+
+```{r echo=FALSE}
+mu1 <- c(0,0)
+mu2 <- c(1.5,1.2)
+sigma1 <- matrix(c(0.6,0,0,0.6),nrow = 2)
+sigma2 <- matrix(c(0.5,0,0,0.5),nrow = 2)
+
+new_samples <- mix_normal(1000,0.5,mu1,mu2,sigma1,sigma2)
+sample1 <- new_samples[which(new_samples[,3] == 1), ]
+sample2 <- new_samples[which(new_samples[,3] == 2), ]
+plot(sample1[,1],sample1[,2],col="red",ylim = c(-3,3),xlim = c(-2.5,3))
+points(sample2[,1],sample2[,2],col="blue")
+```
+
+The plot looks satisfactory, because the plot features satisfy the following three points:
+
+1. The plot clearly shows two clusters with centers close to the theoretical mean(0,0) and (1.5,1.2).
+
+2. The sample points of cluster 1 are more dispersed than cluster 2, which is consistent with the covariance difference.(0.6 vs. 0.5).
+
+3. There are no obvious outliers or error distributions in the sample points.
+
+## Appendix
+```{r echo=TRUE, eval=FALSE}
+#' Box_Muller method for generating norm distribution
+#'
+#' @param n Number of samples
+#' @param mu Mean vector of distribution
+#' @param sigma Covariance matrix of distribution
+#'
+#' @returns Matrix of samples
+box_muller <- function(n,mu,sigma){
+  u <- runif(n,0,1)
+  A <- runif(n,0,2*pi)
+  x1 <- sqrt(-2*log(u)) * cos(A)
+  x2 <- sqrt(-2*log(u)) * sin(A)
+  x_standard <- cbind(x1,x2)
+  w <- chol(sigma)
+  Y <- x_standard%*%t(w) + matrix(rep(mu, each = n), ncol = 2)
+  return(Y)
+}
+
+#' Normal mixture distribution generator 
+#'
+#' @param n Number of samples
+#' @param prob The probability that sample belongs to the first distribution
+#' @param mu1 Mean vector of first distribution
+#' @param mu2 Mean vector of second distribution
+#' @param sigma1 Covariance matrix of first distribution
+#' @param sigma2 Covariance matrix of second distribution
+#'
+#' @returns Matrix of samples
+mix_normal <- function(n,prob,mu1,mu2,sigma1,sigma2){
+  
+  # get the number of observations of each density
+  density1_n <- floor(n*prob)
+  density2_n <- n-density1_n
+  
+  sample1 <- box_muller(density1_n,mu1,sigma1)
+  sample2 <- box_muller(density2_n,mu2,sigma2)
+  
+  # add lable to each component
+  sample1 <- cbind(sample1,1)
+  sample2 <- cbind(sample2,2)
+  
+  samples <- rbind(sample1,sample2)
+  return(samples)
+}
+
+mu <- c(0,0)
+sigma <- matrix(c(0.6,0,0,0.6),nrow = 2)
+
+system.time(box_muller(10000000,mu,sigma))
+system.time(rmvnorm(10000000,mu,sigma,method = "chol"))
+
+mu1 <- c(0,0)
+mu2 <- c(1.5,1.2)
+sigma1 <- matrix(c(0.6,0,0,0.6),nrow = 2)
+sigma2 <- matrix(c(0.5,0,0,0.5),nrow = 2)
+
+new_samples <- mix_normal(1000,0.5,mu1,mu2,sigma1,sigma2)
+sample1 <- new_samples[which(new_samples[,3] == 1), ]
+sample2 <- new_samples[which(new_samples[,3] == 2), ]
+plot(sample1[,1],sample1[,2],col="red",ylim = c(-3,3),xlim = c(-3,3))
+points(sample2[,1],sample2[,2],col="blue")
+```
+
