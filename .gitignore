@@ -1,3 +1,6 @@
+# MacOs
+.DS_Store
+
 # Latex installation
 .TinyTeX/
 bin/
@@ -14,6 +17,7 @@ mycode/
 *.tex
 *.pdf
 .wget-hsts
+*.aux
 
 # History files
 .Rhistory
