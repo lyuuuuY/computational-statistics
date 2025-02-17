@@ -1,8 +1,3 @@
-densityTarget <- function(x) (1 / 14400) * ifelse(x > 0, 120 * x^5 * exp(-x), 0)
-densityProposal <- function(x, y) dnorm(x, mean = y, sd = 0.1)
-randomProposal <- function(x) rnorm(n = 1, mean = x, sd = 0.1)
-
-
 #' Metropolis-Hastings Algorithm
 #'
 #' @param n integer.
@@ -50,9 +45,3 @@ rmh <- function(n, densityTarget, densityProposal, randomProposal, x0) {
   
   return(draws)
 }
-
-
-x <- rmh(100000, densityTarget, densityProposal, randomProposal, 0.1)
-hist(x, probability = TRUE, breaks = 20, col = "skyblue", main = "")
-curve(densityTarget(x), add = TRUE, col = "red", lwd = 2)
-
