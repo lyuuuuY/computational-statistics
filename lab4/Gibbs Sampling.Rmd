@@ -1,0 +1,293 @@
+---
+title: "Question 2: Gibbs sampling"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r include=FALSE}
+#' Gibbs sampling for bivariate distribution f(x1,x2)
+#'
+#' @param w Parameter of the density function
+#' @param n Number of samples
+#'
+#' @returns A matrix which contains the samples
+gibbs_sampling <- function(w,n) {
+  x1 <- 0
+  x2 <- 0
+  samples <- matrix(0, nrow = n, ncol = 2)
+  
+  for (i in 1:n) {
+
+    x1_min <- -(w/2) * x2 - sqrt(1-(1-w^2/4)*x2^2)
+    x1_max <- -(w/2) * x2 + sqrt(1-(1-w^2/4)*x2^2)
+    x1 <- runif(1, x1_min, x1_max)
+    
+    x2_min <- -(w/2) * x1 - sqrt(1-(1-w^2/4)*x1^2)
+    x2_max <- -(w/2) * x1 + sqrt(1-(1-w^2/4)*x1^2)
+    x2 <- runif(1, x2_min, x2_max)
+    
+    samples[i, ] <- c(x1, x2)
+  }
+  
+  return(samples)
+}
+
+
+#' Gibbs sampling for bivariate distribution f(u1,u2)
+#'
+#' @param w Parameter of the density function
+#' @param n Number of samples
+#'
+#' @returns A matrix which contains the samples
+gibbs_sampling_U <- function(w, n) {
+  U1 <- 0
+  U2 <- 0
+  samples_U <- matrix(0, nrow = n, ncol = 2)
+  
+  for (i in 1:n) {
+    
+    molecular1 <- 4 - (2 + w)*U2^2
+    rangeU1 <- sqrt(molecular1 / (2 - w))
+    U1_min <- -rangeU1
+    U1_max <-  rangeU1
+    U1 <- runif(1, U1_min, U1_max)
+    
+    molecular2 <- 4 - (2 - w)*U1^2
+    rangeU2 <- sqrt(molecular2 / (2 + w))
+    U2_min <- -rangeU2
+    U2_max <-  rangeU2
+    U2 <- runif(1, U2_min, U2_max)
+    
+    samples_U[i, ] <- c(U1, U2)
+  }
+  
+
+  return(samples_U)
+}
+```
+
+For bivariate distribution with density 
+$$
+f(x_1, x_2) \propto \mathbb{1} \{ x_1^2 + w x_1 x_2 + x_2^2 < 1 \}
+$$
+The boundaries of the region is shown below:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+w  <- 1.999
+xv <- seq(-1, 1, by=0.01) * 1/sqrt(1-w^2/4)  
+plot(xv, xv, type="n", xlab=expression(x[1]), ylab=expression(x[2]), las=1)
+# ellipse
+lines(xv, -(w/2)*xv-sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+lines(xv, -(w/2)*xv+sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+```
+
+With the formula we can calculate the conditional distribution of $X_1$ given $X_2$ is uniform on:
+
+$$
+\left[ -\frac{w}{2} x_2 - \sqrt{1 - \left(1 - \frac{w^2}{4}\right) x_2^2}, 
+       -\frac{w}{2} x_2 + \sqrt{1 - \left(1 - \frac{w^2}{4}\right) x_2^2} \right ]
+$$
+
+and the conditional distribution of $X_2$ given $X_1$ is uniform on:
+
+$$
+\left[ -\frac{w}{2} x_1 - \sqrt{1 - \left(1 - \frac{w^2}{4}\right) x_1^2}, 
+       -\frac{w}{2} x_1 + \sqrt{1 - \left(1 - \frac{w^2}{4}\right) x_1^2} \right ]
+$$
+After generating 1000 random vectors with Gibbs sampling, the plot is shown below:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+set.seed(12345)
+samples <- gibbs_sampling(1.999,1000)
+w  <- 1.999
+xv <- seq(-1, 1, by=0.01) * 1/sqrt(1-w^2/4)  
+plot(xv, xv, type="n", xlab=expression(x[1]), ylab=expression(x[2]), las=1)
+# ellipse
+lines(xv, -(w/2)*xv-sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+lines(xv, -(w/2)*xv+sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+points(samples[,1], samples[,2], pch = 20, cex = 0.5, col = "blue")
+```
+Based on the sample, the result $P(X_1 > 0)$ is:
+
+```{r echo=FALSE}
+mean(samples[,1] > 0)
+```
+But repeat this a few times, we can get the true result is about:
+```{r echo=FALSE}
+res <- numeric(50)
+
+for (i in 1:50) {
+  sample <- gibbs_sampling(1.999,1000)
+  res[i] <- mean(sample[,1] > 0)
+}
+
+mean(res)
+```
+As $w$ is close to 2, the ellipse becomes more and more slender.  This makes the Gibbs chain mix more slowly. The conditional ranges in one direction gets narrow, so the sampler makes very small moves in each step. This means it takes many iterations to explore the whole ellipse.
+
+We might transform the variable $X$ and generate $U = (U_1,U_2)) = (X_1 -X_2,X_1+X_2)$ instead. In this case, the boundaries of this region is:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+u1v <- seq(-1, 1, by = 0.01) * sqrt(4 / (2 - w))
+u2_plus  <-  sqrt( pmax(0, 4 - (2 - w)*u1v^2 ) / (2 + w) )
+u2_minus <- -u2_plus
+plot(u1v, u2_plus, type="n", xlab=expression(u[1]), ylab=expression(u[2]), 
+     asp = 1, las = 1, 
+     )
+lines(u1v,  u2_plus,  lwd=2, col=8)
+lines(u1v,  u2_minus, lwd=2, col=8)
+```
+
+Then we generate 1000 random vectors with Gibbs sampling for $U$ and the plot is:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+samples_U <- gibbs_sampling_U(1.999,1000)
+u1v <- seq(-1, 1, by = 0.01) * sqrt(4 / (2 - w))
+u2_plus  <-  sqrt( pmax(0, 4 - (2 - w)*u1v^2 ) / (2 + w) )
+u2_minus <- -u2_plus
+plot(u1v, u2_plus, type="n", xlab=expression(u[1]), ylab=expression(u[2]), 
+     asp = 1, las = 1, 
+    )
+lines(u1v,  u2_plus,  lwd=2, col=8)
+lines(u1v,  u2_minus, lwd=2, col=8)
+
+points(samples_U[,1], samples_U[,2], pch = 20, cex = 0.5, col = "red")
+```
+Next, we use the transformation to get samples $X$ and plot them:
+
+```{r fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+samples_X <- cbind( (samples_U[,1] + samples_U[,2]) / 2,
+                    (samples_U[,2] - samples_U[,1]) / 2 )
+w  <- 1.999
+xv <- seq(-1, 1, by=0.01) * 1/sqrt(1-w^2/4)  
+plot(xv, xv, type="n", xlab=expression(x[1]), ylab=expression(x[2]), las=1)
+# ellipse
+lines(xv, -(w/2)*xv-sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+lines(xv, -(w/2)*xv+sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+points(samples_X[,1], samples_X[,2], pch = 20, cex = 0.5, col = "blue")
+```
+Based on this sample, $P(X_1 > 0)$ is:
+```{r echo=FALSE}
+mean(samples_X[,1] > 0)
+```
+After repeating a few times, $P(X_1 > 0)$ is:
+```{r echo=FALSE}
+res2 <- numeric(50)
+
+for (i in 1:50) {
+  sample <- gibbs_sampling_U(1.999,1000)
+  samples_X <- cbind( (sample[,1] + sample[,2]) / 2,
+                    (sample[,2] - sample[,1]) / 2 )
+  res2[i] <- mean(samples_X[,1] > 0)
+}
+
+mean(res2)
+```
+Compare the result with Part c, Transformation to $(U_1,U_2)$ makes sampling more uniform. The result is that sample points are almost spread across the entire area.
+
+A single sample, the result of $P(X_1 > 0)$ from Transformation $U$ is more stable, which cloese to 1/2. But since the elliptical area is symmetrical, the results after multiple samples will tend to be 1/2.
+
+
+## Appendix
+```{r echo=TRUE, eval=FALSE}
+#' Gibbs sampling for bivariate distribution f(x1,x2)
+#'
+#' @param w Parameter of the density function
+#' @param n Number of samples
+#'
+#' @returns A matrix which contains the samples
+gibbs_sampling <- function(w,n) {
+  x1 <- 0
+  x2 <- 0
+  samples <- matrix(0, nrow = n, ncol = 2)
+  
+  for (i in 1:n) {
+
+    x1_min <- -(w/2) * x2 - sqrt(1-(1-w^2/4)*x2^2)
+    x1_max <- -(w/2) * x2 + sqrt(1-(1-w^2/4)*x2^2)
+    x1 <- runif(1, x1_min, x1_max)
+    
+    x2_min <- -(w/2) * x1 - sqrt(1-(1-w^2/4)*x1^2)
+    x2_max <- -(w/2) * x1 + sqrt(1-(1-w^2/4)*x1^2)
+    x2 <- runif(1, x2_min, x2_max)
+    
+    samples[i, ] <- c(x1, x2)
+  }
+  
+  return(samples)
+}
+
+
+#' Gibbs sampling for bivariate distribution f(u1,u2)
+#'
+#' @param w Parameter of the density function
+#' @param n Number of samples
+#'
+#' @returns A matrix which contains the samples
+gibbs_sampling_U <- function(w, n) {
+  U1 <- 0
+  U2 <- 0
+  samples_U <- matrix(0, nrow = n, ncol = 2)
+  
+  for (i in 1:n) {
+    
+    molecular1 <- 4 - (2 + w)*U2^2
+    rangeU1 <- sqrt(molecular1 / (2 - w))
+    U1_min <- -rangeU1
+    U1_max <-  rangeU1
+    U1 <- runif(1, U1_min, U1_max)
+    
+    molecular2 <- 4 - (2 - w)*U1^2
+    rangeU2 <- sqrt(molecular2 / (2 + w))
+    U2_min <- -rangeU2
+    U2_max <-  rangeU2
+    U2 <- runif(1, U2_min, U2_max)
+    
+    samples_U[i, ] <- c(U1, U2)
+  }
+  
+
+  return(samples_U)
+}
+
+w  <- 1.999
+xv <- seq(-1, 1, by=0.01) * 1/sqrt(1-w^2/4)  
+plot(xv, xv, type="n", xlab=expression(x[1]), ylab=expression(x[2]), las=1)
+# ellipse
+lines(xv, -(w/2)*xv-sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+lines(xv, -(w/2)*xv+sqrt(1-(1-w^2/4)*xv^2), lwd=2, col=8)
+set.seed(12345)
+samples <- gibbs_sampling(1.999,1000)
+mean(samples[,1] > 0)
+points(samples[,1], samples[,2], pch = 20, cex = 0.5, col = "blue")
+
+samples_U <- gibbs_sampling_U(1.999,1000)
+samples_X <- cbind( (samples_U[,1] + samples_U[,2]) / 2,
+                    (samples_U[,2] - samples_U[,1]) / 2 )
+
+
+u1v <- seq(-1, 1, by = 0.01) * sqrt(4 / (2 - w))
+u2_plus  <-  sqrt( pmax(0, 4 - (2 - w)*u1v^2 ) / (2 + w) )
+u2_minus <- -u2_plus
+plot(u1v, u2_plus, type="n", xlab=expression(u[1]), ylab=expression(u[2]), 
+     asp = 1, las = 1, )
+lines(u1v,  u2_plus,  lwd=2, col=8)
+lines(u1v,  u2_minus, lwd=2, col=8)
+
+points(samples_U[,1], samples_U[,2], pch = 20, cex = 0.5, col = "red")
+
+
+```
+
