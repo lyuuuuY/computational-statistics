@@ -261,11 +261,14 @@ xUniform <- x
 The following table shows the mean for each case.
 
 ```{r echo=FALSE}
+
 meanDf <- data.frame(
   Normal = mean(xNormal),
   ChiSq = mean(xChi),
   Uniform = mean(xUniform)
 )
+
+names(meanDf) <- c("$N$", "$\\chi$", "$U$")
 
 knitr::kable(
   round(meanDf, 3),
