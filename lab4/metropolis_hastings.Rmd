@@ -1,0 +1,224 @@
+---
+title: "Question 1: Computations with Metropolis–Hastings"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+ \setlength{\textfloatsep}{0pt}
+
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r include=FALSE}
+library(ggplot2)
+library(gridExtra)
+```
+
+
+```{r include=FALSE}
+densityTarget <- function(x) (1 / 14400) * ifelse(x > 0, 120 * x^5 * exp(-x), 0)
+
+#' Metropolis-Hastings Algorithm
+#'
+#' @param n integer.
+#'   The number of samples to generate.
+#' @param dtarget function.
+#'   The target distribution's density function. 
+#'   Must be a function with signature x -> dtarget(x).
+#' @param dprop function.
+#'   Density function for the proposed conditional distribution. 
+#'   Must be a function with signature x, y -> dprop(x, y), where y is the 
+#'   conditioning event and x is a value in the support.
+#' @param rprop function.
+#'   Random generator for the proposed conditional distribution. 
+#'   Must be a function with signature x -> rprop(x), where x is the 
+#'   conditioning event.
+#' @param x0 numeric.
+#'   Initial value for the sampling process. Must be in the support of `dprop`.
+#'
+#' @return numeric vector.
+#'   A vector of `n` samples drawn from the target distribution.
+rmh <- function(n, densityTarget, densityProposal, randomProposal, x0) {
+  
+  draws <- numeric(n)
+  new_x <- x0
+   
+  for (i in 1:n) {
+    
+    last_x <- new_x
+    
+    # Sample a candidate from the proposal distribution.
+    y <- randomProposal(last_x)
+    
+    # Compute the MH ratio.
+    R <- (densityTarget(y) * densityProposal(last_x, y)) / (densityTarget(last_x) * densityProposal(y, last_x))
+    
+    # Decide new sample
+    new_x <- ifelse(
+      R >= 1, 
+      y,
+      ifelse(runif(1) < R, y, last_x)
+      )
+    
+    draws[i] <- new_x
+  }
+  
+  return(draws)
+}
+```
+
+
+
+We are given the target density
+
+$$
+f(x) = 120 x^5 e^{-x} \quad x > 0
+$$
+
+Whose integral over $(x, \infty)$ yields
+
+$$
+\int_0^{\infty} 120 x^5 e^{-x} dx = 14400
+$$
+
+implying the number $\frac{1}{14400}$ to be the normalization factor.
+
+
+## Normal distribution
+
+```{r include=FALSE}
+normalDensityProposal <- function(x, y) dnorm(x, mean = y, sd = 0.1)
+normalRandomProposal <- function(x) rnorm(n = 1, mean = x, sd = 0.1)
+```
+
+Here, we apply the MH algorithm using $\mathcal{N}(\mu = X_t, \sigma = 0.1)$ as the
+proposed conditional density $g_{Y_{t+1} | Y_t}$. That is, 
+
+$$
+g_{Y_{t+1} | Y_t}(y_{t+1} | y_t) = \mathcal{N}(y_{t+1} | \mu = y_t, \sigma = 0.1)
+$$
+
+The following figure shows four runs of length $10000$ using different 
+starting values.
+
+
+```{r include=FALSE}
+x1 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.1)
+x2 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.2)
+x3 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.3)
+x4 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.4)
+```
+
+```{r echo=FALSE, fig.height=2, fig.width=6, fig.align="center", fig.cap = "Multiple execution of the MH algorithm."}
+# Create a 2x2 grid layout
+par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0))  # Adjust margins
+
+# Plot the first vector (x1)
+plot(x1, type = "l", main = "",xlab = "Iteration",  ylab = "Value", col = "black")
+
+# Plot the second vector (x2)
+plot(x2, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Plot the third vector (x3)
+plot(x3, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Plot the fourth vector (x4)
+plot(x4, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Reset layout to single plot (optional)
+par(mfrow = c(1, 1))
+```
+
+
+
+In addition,the following plot overlaps the histogram from a single chain of
+length $100,000$ with the true target density $f$.
+
+
+```{r fig.height=2, fig.width=3, fig.align="center", fig.cap="Histogram of MH deviates values. The red curve shows the target (true) density.", echo=FALSE}
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+x <- rmh(100000, densityTarget, normalDensityProposal, normalRandomProposal, 0.1)
+hist(x, probability = TRUE, breaks = 20, col = "skyblue", main = "")
+curve(densityTarget(x), add = TRUE, col = "red", lwd = 2)
+```
+
+
+**What can you guess about the convergence of the chain? If there
+is a burn–in period, what can be the size of this period? What is the acceptance rate?**
+
+
+## Chi-square distribution
+
+```{r include=FALSE}
+chiDensityProposal <- function(x, y) dchisq(x, df = floor(y + 1))
+chiRandomProposal <- function(x) rchisq(n = 1, df = floor(x + 1))
+```
+
+
+Now, we use $\chi(\lfloor{X_t + 1}\rfloor)$ as the proposal distribution where
+$\lfloor{\cdot}\rfloor$ is the floor function. The results are shown in the 
+following figures.
+
+```{r include=FALSE}
+x1 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.1)
+x2 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.2)
+x3 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.3)
+x4 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.4)
+```
+
+```{r echo=FALSE, fig.height=2, fig.width=6, fig.align="center", fig.cap = "Multiple execution of the MH algorithm."}
+# Create a 2x2 grid layout
+par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0))  # Adjust margins
+
+# Plot the first vector (x1)
+plot(x1, type = "l", main = "",xlab = "Iteration",  ylab = "Value", col = "black")
+
+# Plot the second vector (x2)
+plot(x2, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Plot the third vector (x3)
+plot(x3, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Plot the fourth vector (x4)
+plot(x4, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+
+# Reset layout to single plot (optional)
+par(mfrow = c(1, 1))
+```
+
+```{r fig.height=2, fig.width=3, fig.align="center", fig.cap="Histogram of MH deviates values. The red curve shows the target (true) density.", echo=FALSE}
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+x <- rmh(100000, densityTarget, chiDensityProposal, chiRandomProposal, 0.1)
+hist(x, probability = TRUE, breaks = 20, col = "skyblue", main = "")
+curve(densityTarget(x), add = TRUE, col = "red", lwd = 2)
+```
+
+
+**What can you guess about the convergence of the chain? If there
+is a burn–in period, what can be the size of this period? What is the acceptance rate?**
+
+## Uniform distribution
+
+
+
+## Comparisson
+
+
+## Estimated mean
+
+
+## True mean
+
+
+
+
+
