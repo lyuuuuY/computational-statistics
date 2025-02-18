@@ -21,6 +21,7 @@ knitr::opts_chunk$set(fig.pos = 'H')
 ```{r include=FALSE}
 library(ggplot2)
 library(gridExtra)
+set.seed(2)
 ```
 
 
@@ -45,11 +46,11 @@ densityTarget <- function(x) ifelse(x > 0, (1/120) * x^5 * exp(-x), 0)
 #' @param x0 numeric.
 #'   Initial value for the sampling process. Must be in the support of `dprop`.
 #'
-#' @return numeric vector.
-#'   A vector of `n` samples drawn from the target distribution.
+#' @return list
 rmh <- function(n, densityTarget, densityProposal, randomProposal, x0) {
   
-  draws <- numeric(n)
+  sample <- numeric(n)
+  n_accepted <- 0
   new_x <- x0
    
   for (i in 1:n) {
@@ -62,17 +63,19 @@ rmh <- function(n, densityTarget, densityProposal, randomProposal, x0) {
     # Compute the MH ratio.
     R <- (densityTarget(y) * densityProposal(last_x, y)) / (densityTarget(last_x) * densityProposal(y, last_x))
     
-    # Decide new sample
+    # Decide new sample.
+    # Increment count if proposed sample is accepted.
     new_x <- ifelse(
       R >= 1, 
-      y,
-      ifelse(runif(1) < R, y, last_x)
+      {n_accepted <- n_accepted + 1; y},
+      ifelse(runif(1) < R, {n_accepted <- n_accepted + 1; y}, last_x)
       )
     
-    draws[i] <- new_x
+    sample[i] <- new_x
   }
   
-  return(draws)
+  acceptance_rate = n_accepted / n
+  return(list(sample=sample, acceptange_rate=acceptance_rate))
 }
 ```
 
@@ -84,8 +87,15 @@ $$
 f(x) = \frac{1}{120} x^5 e^{-x} \quad x > 0
 $$
 
-In what follows ww will use the Metropolis-Hasting algorithm (MH) to generate
-random samples from this density.
+In what follows we will use the Metropolis-Hasting algorithm (MH) under
+different proposal distributions to generate random samples from this 
+density. In particular, the proposal distribution used are
+
+1. $\mathcal{N}(\mu = X_t, \sigma = 0.1)$
+2. $\chi(\lfloor{X_t + 1}\rfloor)$
+3. $\mathcal{U}(X_t - 1, X_t + 1)$
+
+Further details are given on each section.
 
 
 
@@ -104,40 +114,43 @@ g_{X_{t+1} | X_t}(x_{t+1} | x_t) = \mathcal{N}(x_{t+1} | \mu = x_t, \sigma = 0.1
 $$
 
 The following figure shows four runs of length $10,000$ using different 
-starting values.
+starting values. The acceptance rate is also shown at the top of each
+plot.
 
 
 ```{r include=FALSE}
-x1 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.1)
-x2 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.2)
-x3 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.3)
-x4 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, 0.4)
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[4])
+
+normalAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
 ```
 
 ```{r echo=FALSE, fig.height=2, fig.width=6, fig.align="center", fig.cap = "Multiple execution of the MH algorithm using $\\mathcal{N}(\\mu = X_t, \\sigma = 0.1)$ as the proposal distribution."}
 # Create a 2x2 grid layout
-par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0))  # Adjust margins
+par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0), cex.main = 0.5)  # Adjust margins
 
 # Plot the first vector (x1)
-plot(x1, type = "l", main = "",xlab = "Iteration",  ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[1], x1$acceptange_rate)
+plot(x1$sample, type = "l", main = main ,xlab = "Iteration",  ylab = "Value", col = "black")
 
 # Plot the second vector (x2)
-plot(x2, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[2], x2$acceptange_rate)
+plot(x2$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the third vector (x3)
-plot(x3, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[3], x3$acceptange_rate)
+plot(x3$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the fourth vector (x4)
-plot(x4, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[4], x4$acceptange_rate)
+plot(x4$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Reset layout to single plot (optional)
 par(mfrow = c(1, 1))
 ```
-
-
-
-**What can you guess about the convergence of the chain? If there
-is a burn–in period, what can be the size of this period? What is the acceptance rate?**
 
 
 ## Chi-square distribution
@@ -153,36 +166,38 @@ $\lfloor{\cdot}\rfloor$ is the floor function. The results are shown in the
 following figures.
 
 ```{r include=FALSE}
-x1 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.1)
-x2 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.2)
-x3 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.3)
-x4 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, 0.4)
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[4])
+
+chiAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
 ```
 
 ```{r echo=FALSE, fig.height=2, fig.width=6, fig.align="center", fig.cap = "Multiple execution of the MH algorithm using $\\chi(\\lfloor{X_t + 1}\\rfloor)$ as the proposal distribution."}
 # Create a 2x2 grid layout
-par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0))  # Adjust margins
+par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0), cex.main = 0.5)  # Adjust margins
 
 # Plot the first vector (x1)
-plot(x1, type = "l", main = "",xlab = "Iteration",  ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[1], x1$acceptange_rate)
+plot(x1$sample, type = "l", main = main ,xlab = "Iteration",  ylab = "Value", col = "black")
 
 # Plot the second vector (x2)
-plot(x2, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[2], x2$acceptange_rate)
+plot(x2$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the third vector (x3)
-plot(x3, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[3], x3$acceptange_rate)
+plot(x3$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the fourth vector (x4)
-plot(x4, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[4], x4$acceptange_rate)
+plot(x4$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Reset layout to single plot (optional)
 par(mfrow = c(1, 1))
 ```
-
-
-**What can you guess about the convergence of the chain? If there
-is a burn–in period, what can be the size of this period? What is the acceptance rate?**
-
 
 ## Uniform distribution
 
@@ -191,54 +206,60 @@ unDensityProposal <- function(x, y) dunif(x, y - 1, y + 1)
 unRandomProposal <- function(x) runif(n = 1, x - 1, x + 1)
 ```
 
-In what follows we experiment with the uniform distribution centered around 
+Next, we experiment with the uniform distribution centered around 
 $X_t$. In particular, $\mathcal{U}(X_t - 1, X_t + 1)$.
 
 
 ```{r include=FALSE}
-x1 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, 0.1)
-x2 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, 0.2)
-x3 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, 0.3)
-x4 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, 0.4)
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[4])
+
+uniAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
 ```
 
 
 ```{r echo=FALSE, fig.height=2, fig.width=6, fig.align="center", fig.cap = "Multiple execution of the MH algorithm using $\\mathcal{U}(X_t - 1, X_t + 1)$ as the proposal distribution."}
 # Create a 2x2 grid layout
-par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0))  # Adjust margins
+par(mfrow = c(2, 2), mar = c(3, 3, 0.5, 0.5), oma = c(0, 0, 0, 0), cex.main = 0.5)  # Adjust margins
 
 # Plot the first vector (x1)
-plot(x1, type = "l", main = "",xlab = "Iteration",  ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[1], x1$acceptange_rate)
+plot(x1$sample, type = "l", main = main ,xlab = "Iteration",  ylab = "Value", col = "black")
 
 # Plot the second vector (x2)
-plot(x2, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[2], x2$acceptange_rate)
+plot(x2$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the third vector (x3)
-plot(x3, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[3], x3$acceptange_rate)
+plot(x3$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Plot the fourth vector (x4)
-plot(x4, type = "l", main = "", xlab = "Iteration", ylab = "Value", col = "black")
+main <- sprintf("Starting value=%s ; Acceptance rate=%s", starting_values[4], x4$acceptange_rate)
+plot(x4$sample, type = "l", main = main, xlab = "Iteration", ylab = "Value", col = "black")
 
 # Reset layout to single plot (optional)
 par(mfrow = c(1, 1))
+
 ```
 
 
-**What can you guess about the convergence of the chain? If there is a burn–in period, what can be the size of this period? What is the acceptance rate?**
-
 ## Histograms
 
-In addition to the chain plots from each section, here we show the histogram
-for each case along with the target (true) density.
+In addition to the sample plots from each section, we show the histogram
+for one of the runs for each case along with the target (true) density.
 
 ```{r fig.height=2, fig.width=6, fig.align="center", fig.cap="Histograms for each proposal distribution. The red curve shows the target (true) density.", echo=FALSE}
 
 n <- 10000
 x <- 0:100
 
-xNormal <- rmh(n, densityTarget, normalDensityProposal, normalRandomProposal, 0.1) 
-xChiSq <- rmh(n, densityTarget, chiDensityProposal, chiRandomProposal, 0.1) 
-xUniform <- rmh(n, densityTarget, chiDensityProposal, chiRandomProposal, 0.1) 
+xNormal <- rmh(n, densityTarget, normalDensityProposal, normalRandomProposal, 1)$sample 
+xChiSq <- rmh(n, densityTarget, chiDensityProposal, chiRandomProposal, 1)$sample 
+xUniform <- rmh(n, densityTarget, chiDensityProposal, chiRandomProposal, 1)$sample 
 
 
 # Create the histograms
@@ -255,7 +276,38 @@ par(mfrow = c(1, 1))
 ```
 
 
-## Comparisson
+## Comparisson: convergence, burn-in period and acceptance rate
+
+The following table summarizes the distinctions between the three
+proposal distribution.
+
+```{r echo=FALSE}
+
+acceptance_rates <- c(normalAcceptanceRate, chiAcceptanceRate, uniAcceptanceRate)
+burn_in_period <- c("0-1000", "0-10", "0-100")
+comparissonDf <- data.frame(
+  acceptanceRate = acceptance_rates,
+  burnInPeriod = burn_in_period,
+  convergence = c("Yes", "Yes", "Yes")
+)
+
+rownames(comparissonDf) <- c("$N$", "$\\chi$", "$U$")
+
+
+knitr::kable(
+  t(comparissonDf),
+  caption = "Comparisson between the proposal distributions"
+)
+
+
+```
+
+The acceptance rate what calculated using the mean of each of the $4$ runs
+for each distribution. Both $\mathcal{N}$ and $\mathcal{U}$ show high 
+acceptance range which is often not desirable since it means the algorithm
+is not being exploratory enough (too conservative). According to the histograms, all distributions seem to converge to the target (true) density; however, the trace plot from$\mathcal{N}$ indicates the steps taken are too small due to the low standard deviation (which also explain the high acceptance rate), Hence, convergence for this case takes longer. Burn-in periods were determined visually, by the trace plots. Here the $\chi$ distribution shows little to no burn-in period, meaning convergence is faster than the rest.
+ 
+
 
 
 ## Estimated mean
