@@ -59,7 +59,7 @@ confint(final_model, level = 0.95)
 The plot of yield vs. concentration and the regression curve is shown
 below:
 
-```{r echo=FALSE}
+```{r,fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
 plot(x,y, xlab = "Concentration", 
      ylab = "Yield",
      main = "Yield vs. Concentration with Fitted Curve")
@@ -70,7 +70,7 @@ Next, we choose to derive a 95%-confidence interval for $\beta_2$ with
 our own bootstrap program, the histogram with bootstrap distribution for
 $\beta_2$ is:
 
-```{r echo=FALSE}
+```{r,fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
 set.seed(12345) 
 B <- 10000
 n <- nrow(data)
