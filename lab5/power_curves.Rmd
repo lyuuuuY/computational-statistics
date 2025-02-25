@@ -1,0 +1,164 @@
+---
+title: "Question 2: Simulation of power curves"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+header-includes:
+ \usepackage{float}
+ \setlength{\textfloatsep}{0pt}
+ \usepackage{hyperref}
+tables: true
+colorlinks: true
+linkcolor: red
+---
+
+```{r include=FALSE}
+library(BSDA)
+```
+
+
+```{r include=FALSE}
+pgumbel <- function(q, loc = 0, scale = 1) exp(-exp(-(x - loc) / scale))
+qgumbel <- function(p, loc = 0, scale = 1) loc - scale * log(-log(p))
+rgumbel <- function(n, loc = 0, scale = 1) qgumbel(runif(n), loc, scale)
+dgumbel <- function(x, loc = 0, scale = 1) {
+  z <- (x - loc) / scale
+  (1 / scale) * exp(-(z + exp(-z)))
+}
+```
+
+The Gumbel distribution has the distribution function
+
+\begin{equation}
+\label{eq:Gumbel}
+F(x ; \mu, \beta) = \exp{\left\{-\exp{\left\{\frac{-(x - \mu)}{\beta}\right\}}\right\}} 
+\end{equation}
+
+
+where the parameters $\mu$ and $\beta > 0$ represent the location and scale, respectively. The median $M$ of this distribution is $\mu - \beta \log(\log(2))$.
+
+
+## Sampling using the Inverse Transform Method
+
+Let $X \sim F$. Then, we can draw from $X$ through the transformation 
+$X = F^{-1}(U)$ where $U \sim \mathcal{U}(0, 1)$ and $F^{-1}$ is the inverse
+of $F$. For the Gumbel distribution, $F$ is given by \ref{eq:Gumbel} and its inverse
+is obtained by solving for $x$:
+
+
+$$
+\begin{aligned}
+ F(x)                                      &= \exp{\left\{-\exp{\left\{\frac{-(x - \mu)}{\beta}\right\}}\right\}}  \\
+-\log{F(x)}                                &= \exp{\left\{\frac{-(x - \mu)}{\beta}\right\}} \\
+-\beta\log\left\{-\log{F(x)}\right\} + \mu &= x
+\end{aligned}
+$$
+
+Thus, $X = F^{-1}(U) = -\beta\log\left\{-\log{U}\right\} + \mu$. The following histogram
+shows the distribution of $X$ using this transformation for $\mu=\log(\log(2))$ and $\beta=1$ (i.e., median is zero) along with the true density function:
+
+```{r fig.height=2, fig.width=2.5, fig.align="center", fig.cap="Histogram of Gumbel draws obtained using the inverse transform method for $\\mu=\\log(\\log(2))$ and $\\beta=1$.", echo=FALSE}
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+x = rgumbel(1000, log(log(2)))
+hist(x, probability = TRUE, breaks = 10, col = "gray", main = "")
+curve(dgumbel(x), add = TRUE, col = "red", lwd = 2)
+```
+
+
+## Power of the Sign test
+
+Let $X_1, \dots, X_n$ be a random sample of size $n$ with median $M$. We aim to investigate the power (i.e., probability of rejecting $H_0$) of the Sign test for:
+
+$$
+H_0: M = 0 \quad \text{versus} \quad H_a: M > 0
+$$
+
+
+To do so, rather than deriving power analytically, we estimate the power by drawing $n$ samples from any proposal distribution with $M > 0$ (i.e., under $H_a$) and computing the rejection rate over $s$ repetitions. To generate the power curve, this procedure is repeated for multiple values of $M$. The following plot shows the
+results from this experiment using the Gumbel distribution with $\mu = M + \log(\log2)$ and $\beta=1$ as the proposal.
+
+
+
+
+```{r include=FALSE}
+
+M <- seq(from = 0, to = 2, by = 0.1)
+P = numeric(length(M))
+s <- 1000
+n <- 13
+c <- log(log(2))
+
+for (i in 1:length(M)) {
+  m <- M[i]
+  count <- 0
+  
+  for (sim in 1:s) {
+    
+    # True distribution has M > 0
+    loc = m + c
+    x <- rgumbel(n, loc = loc)
+    
+    # Test with M = 0
+    reject <- (SIGN.test(x, alternative = "greater")$p.value < 0.05)
+    count <- count + reject
+  }
+  
+  P[i] <- count / s
+}
+
+```
+
+```{r, fig.height=2, fig.width=4, fig.align="center", fig.cap="Power curve of the sign test using Gumbell as proposal.",  echo=FALSE}
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+plot(M, P, type = "o", col = "blue", xlab = "Median (M)", ylab = "Power")
+```
+
+As expected, the Type 2 error (probability of accepting $H_0$ given $H_0$ is false) decreases as $M$ moves further from 0. In other words, the evidence *against* $M = 0$ strengthens as $M$ increases and, by $M = 0.7$, we reject $H_0$ more often than not.
+
+## Appendix
+
+```r
+library(BSDA)
+
+# --- GUMBEL ---
+pgumbel <- function(q, loc = 0, scale = 1) exp(-exp(-(x - loc) / scale))
+qgumbel <- function(p, loc = 0, scale = 1) loc - scale * log(-log(p))
+rgumbel <- function(n, loc = 0, scale = 1) qgumbel(runif(n), loc, scale)
+dgumbel <- function(x, loc = 0, scale = 1) {
+  z <- (x - loc) / scale
+  (1 / scale) * exp(-(z + exp(-z)))
+}
+
+# --- POWER CURVE ---
+M <- seq(from = 0, to = 2, by = 0.1)
+P = numeric(length(M))
+s <- 1000
+n <- 13
+c <- log(log(2))
+
+for (i in 1:length(M)) {
+  m <- M[i]
+  count <- 0
+  
+  for (sim in 1:s) {
+    
+    # True distribution has M > 0
+    loc = m + c
+    x <- rgumbel(n, loc = loc)
+    
+    # Test with M = 0
+    reject <- (SIGN.test(x, alternative = "greater")$p.value < 0.05)
+    count <- count + reject
+  }
+  
+  P[i] <- count / s
+}
+```
+
+
+
+
