@@ -341,8 +341,97 @@ $$
 $$
 
 
+## Appendix
 
 
+```r
 
+densityTarget <- function(x) ifelse(x > 0, (1/120) * x^5 * exp(-x), 0)
+
+#' Metropolis-Hastings Algorithm
+#'
+#' @param n integer.
+#'   The number of samples to generate.
+#' @param dtarget function.
+#'   The target distribution's density function. 
+#'   Must be a function with signature x -> dtarget(x).
+#' @param dprop function.
+#'   Density function for the proposed conditional distribution. 
+#'   Must be a function with signature x, y -> dprop(x, y), where y is the 
+#'   conditioning event and x is a value in the support.
+#' @param rprop function.
+#'   Random generator for the proposed conditional distribution. 
+#'   Must be a function with signature x -> rprop(x), where x is the 
+#'   conditioning event.
+#' @param x0 numeric.
+#'   Initial value for the sampling process. Must be in the support of `dprop`.
+#'
+#' @return list
+rmh <- function(n, densityTarget, densityProposal, randomProposal, x0) {
+  
+  sample <- numeric(n)
+  n_accepted <- 0
+  new_x <- x0
+   
+  for (i in 1:n) {
+    
+    last_x <- new_x
+    
+    # Sample a candidate from the proposal distribution.
+    y <- randomProposal(last_x)
+    
+    # Compute the MH ratio.
+    R <- (densityTarget(y) * densityProposal(last_x, y)) / (densityTarget(last_x) * densityProposal(y, last_x))
+    
+    # Decide new sample.
+    # Increment count if proposed sample is accepted.
+    new_x <- ifelse(
+      R >= 1, 
+      {n_accepted <- n_accepted + 1; y},
+      ifelse(runif(1) < R, {n_accepted <- n_accepted + 1; y}, last_x)
+      )
+    
+    sample[i] <- new_x
+  }
+  
+  acceptance_rate = n_accepted / n
+  return(list(sample=sample, acceptange_rate=acceptance_rate))
+}
+
+
+#  ---- NORMAL DISTRIBUTION ----
+
+normalDensityProposal <- function(x, y) dnorm(x, mean = y, sd = 0.1)
+normalRandomProposal <- function(x) rnorm(n = 1, mean = x, sd = 0.1)
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, normalDensityProposal, normalRandomProposal, starting_values[4])
+normalAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
+
+
+#  ---- CHISQ DISTRIBUTION ----
+
+chiDensityProposal <- function(x, y) dchisq(x, df = floor(y + 1))
+chiRandomProposal <- function(x) rchisq(n = 1, df = floor(x + 1))
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, chiDensityProposal, chiRandomProposal, starting_values[4])
+chiAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
+
+# ---- UNIFORM DISTRIBUTION ----
+
+unDensityProposal <- function(x, y) dunif(x, y - 1, y + 1)
+unRandomProposal <- function(x) runif(n = 1, x - 1, x + 1)
+starting_values <- c(0.1, 0.2, 0.3, 0.4)
+x1 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[1])
+x2 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[2])
+x3 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[3])
+x4 <- rmh(10000, densityTarget, unDensityProposal, unRandomProposal, starting_values[4])
+uniAcceptanceRate <- mean(x1$acceptange_rate, x2$acceptange_rate, x3$acceptange_rate, x4$acceptange_rate)
+```
 
 
