@@ -1,0 +1,285 @@
+---
+title: "Question 2: Simulated Annealing"
+output:
+  pdf_document: 
+    keep_tex: true
+    latex_engine: xelatex
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+library(knitr)
+```
+
+```{r include=FALSE}
+#' Sum of minimal distance
+#'
+#' @param dat Full dataset.
+#' @param subs The set of ids for the subset selected.
+#'
+#' @returns Sum of minimal distance to an element in the subset.
+crit <- function(dat, subs){
+  s <- length(subs)
+  dist <- matrix(rep(NA, nclients*s), ncol=s)
+  for (i in 1:s){
+    dist[, i] <- sqrt((dat[,1]-dat[subs[i],1])^2+(dat[,2]-dat[subs[i],2])^2)
+  }
+  sum(apply(dist, 1, min))
+}
+
+
+#' Proposal distribution function
+#'
+#' This function first randomly remove half of the current selected clients,
+#' then randomly choose 11 clients from rest dataset.
+#'
+#' @param xt The set of ids for the  current subset selected.
+#'
+#' @returns new ids for subsets.
+proposal_distribution <- function(xt){
+  current_index <- xt
+  remove <- sample(length(current_index), 11)
+  new <- sample(setdiff(fullset,current_index),11)
+  new_index <- c(current_index[-remove],new)
+  return(new_index)
+}
+
+#' Simulated annealin function
+#'
+#' @param crit Function which need to be minimized.
+#' @param start_index Starting value: first 22 clients.
+#' @param initial_temp Starting temperature.
+#' @param stage Number of iterations.
+#' @param mj Number of repeat times in each stage.
+#' @param schedule Cooling schedules including "Geometric", "Logarithmic" and "Linear".
+#'
+#' @returns Final index of 22 clients
+simulated_annealing <- function(crit,start_index,initial_temp,stage,mj,schedule){
+  xt <- start_index
+  temp_j <- initial_temp
+  values <- numeric(stage+1)
+  for (j in 0:stage) {
+    for (rep in c(1:3)) {
+      for (i in 1:mj) {
+        candidate <- proposal_distribution(xt)
+        h <- exp((crit(bankdata,xt) - crit(bankdata,candidate))/temp_j)
+        prob <- min(h,1)
+        xt1 <- xt
+        if(prob == 1 || runif(1) < prob){
+          xt1 <- candidate
+        }
+        xt <- xt1
+      }
+    }
+    if(schedule=="Geometric"){
+      temp_j <- alpha*temp_j
+    }
+    else if(schedule=="Logarithmic"){
+      temp_j <- temp_j/(1+log(1+j))
+    }
+    else if(schedule=="Linear"){
+      temp_j <- max(temp_j - j * c, 1)
+    }
+    mj <- round(beta * mj)
+    values[j+1] <- crit(bankdata, xt)
+    plot(values,type="l")
+  }
+  return(xt)
+}
+```
+
+First, we randomly choose 22 clients and mark them in the plot of full dataset.
+
+```{r echo=FALSE}
+load("bankdata.Rdata")
+nclients <- dim(bankdata)[1]
+plot(bankdata)
+
+set.seed(12345)
+first22_index <- sample(nrow(bankdata),22,replace = FALSE)
+fullset <- 1:nclients
+points(bankdata[first22_index,],col="red",pch=16)
+```
+
+The minimal distance of these 22 clients is:
+
+```{r echo=FALSE}
+crit(bankdata, first22_index)
+```
+In our Simulated Annealing function, to select new candidates we use the following method:
+
+- Randomly remove half(11) of the current selected clients;
+
+- Randomly choose 11 clients from the remaining dataset.
+
+Now we are trying several combinations of cooling schedules, temperatures and iterations.
+
+We set fixed parameters for cooling schedule:
+
+Geometric Cooling ($\tau_{j+1} = \alpha \tau_j$): $\alpha = 0.9$, $\beta=1.2$.
+
+Logarithmic Cooling ($\tau_{j+1} = \frac{\tau_0}{1 + b \log(1 + j)}$)：$b=1$.
+
+Linear Cooling ($\tau_{j+1} = \tau_j - c$)：$c=5$.
+
+The setting of parameters and results are shown below:
+
+```{r include=FALSE}
+alpha <- 0.9
+beta <- 1.2
+c <- 5
+try1 <- simulated_annealing(crit,first22_index,100,20,5,"Geometric")
+try2 <- simulated_annealing(crit,first22_index,100,20,10,"Geometric")
+try3 <- simulated_annealing(crit,first22_index,500,20,5,"Geometric")
+try4 <- simulated_annealing(crit,first22_index,1000,20,5,"Geometric")
+```
+```{r include=FALSE}
+result1 <- crit(bankdata, try1)
+result2 <- crit(bankdata, try2)
+result3 <- crit(bankdata, try3)
+result4 <- crit(bankdata, try4)
+```
+
+```{r echo=FALSE}
+df <- data.frame(
+  combination = c(1,2,3,4),
+  temperature = c(100,100,500,1000),
+  stage = c(20,20,20,20),
+  mj = c(5,10,5,5),
+  schedule = c("Geometric","Geometric","Geometric","Geometric"),
+  result = c(result1,result2,result3,result4)
+)
+
+kable(df,caption = "Table of different combinations")
+```
+
+From the table above, we can see that the second combination has the best result. Now we continue to use different cooling schedule based on the parameters of combination 2.
+
+```{r include=FALSE}
+try5 <- simulated_annealing(crit,first22_index,100,20,10,"Logarithmic")
+try6 <- simulated_annealing(crit,first22_index,100,20,10,"Linear")
+```
+
+```{r include=FALSE}
+result5 <- crit(bankdata, try5)
+result6 <- crit(bankdata, try6)
+```
+
+```{r echo=FALSE}
+df2 <- data.frame(
+  combination = c(2,5,6),
+  temperature = c(100,100,100),
+  stage = c(20,20,20),
+  mj = c(10,10,10),
+  schedule = c("Geometric","Logarithmic","Linear"),
+  result = c(result2,result5,result6)
+)
+
+kable(df2,caption = "Table of different cooling schedule")
+```
+
+From the table above, we can see that Geometric cooling schedule is still the best choice. And from all these combinations, combination 2 has the best result, while combination 4 behaves the worst.
+
+```{r echo=FALSE, fig.cap="Criterion-value VS. Iteration number", fig.show='hold', out.width="50%"}
+include_graphics(c("./fig/try2.png", 
+                   "./fig/try4.png"
+                   ))
+```
+```{r echo=FALSE, fig.show='hold', out.width="50%"}
+include_graphics(c("./fig/plot2.png", 
+                   "./fig/plot4.png"
+                   ))
+```
+**Features**
+
+From the plots above, the objective function of combination 2 decreases more smoothly and converges to a lower value in the later period. The objective function of combination 4 fluctuates greatly.
+
+In the plot of data with result of combination 2 & combination 4. The red points of combination 2 seem to be more evenly distributed, while the red points of combination 4 are more concentrated in dense areas, and do not involve people with low age and low balance.
+
+**Explanation**
+
+Exploration ability: Combination 4 explores too much in the early stage of high temperature and easily accepts poor solutions, while Combination 2 explores moderately, making the search more balanced.
+
+Optimization refinement: Combination 4 has fewer iterations and cannot be fully optimized in the low-temperature stage, resulting in a poor final solution; while combination 2 has more iterations and is more fully optimized.
+
+Convergence: Due to excessive randomness, the target value of combination 4 fluctuates greatly; while the target value of combination 2 decreases smoothly, and the final result is better.
+
+## Appendix
+
+```{r, echo=TRUE, eval=FALSE}
+load("bankdata.Rdata")
+nclients <- dim(bankdata)[1]
+plot(bankdata,main = "plot of data with result of combination4")
+
+set.seed(12345)
+first22_index <- sample(nrow(bankdata),22,replace = FALSE)
+fullset <- 1:nclients
+points(bankdata[first22_index,],col="red",pch=16)
+
+crit <- function(dat, subs){
+  s <- length(subs)
+  dist <- matrix(rep(NA, nclients*s), ncol=s)
+  for (i in 1:s){
+    dist[, i] <- sqrt((dat[,1]-dat[subs[i],1])^2+(dat[,2]-dat[subs[i],2])^2)
+  }
+  sum(apply(dist, 1, min))
+}
+
+test <- crit(bankdata,first22_index)
+
+
+proposal_distribution <- function(xt){
+  current_index <- xt
+  remove <- sample(length(current_index), 11)
+  new <- sample(setdiff(fullset,current_index),11)
+  new_index <- c(current_index[-remove],new)
+  return(new_index)
+}
+
+simulated_annealing <- function(crit,start_index,initial_temp,stage,mj,schedule){
+  xt <- start_index
+  temp_j <- initial_temp
+  values <- numeric(stage+1)
+  for (j in 0:stage) {
+    for (rep in c(1:3)) {
+      for (i in 1:mj) {
+        candidate <- proposal_distribution(xt)
+        h <- exp((crit(bankdata,xt) - crit(bankdata,candidate))/temp_j)
+        prob <- min(h,1)
+        xt1 <- xt
+        if(prob == 1 || runif(1) < prob){
+          xt1 <- candidate
+        }
+        xt <- xt1
+      }
+    }
+    if(schedule=="Geometric"){
+      temp_j <- alpha*temp_j
+    }
+    else if(schedule=="Logarithmic"){
+      temp_j <- temp_j/(1+log(1+j))
+    }
+    else if(schedule=="Linear"){
+      temp_j <- max(temp_j - j * c, 1)
+    }
+    mj <- round(beta * mj)
+    values[j+1] <- crit(bankdata, xt)
+    plot(values,type="l")
+  }
+  return(xt)
+}
+
+alpha <- 0.9
+beta <- 1.2
+c <- 5
+
+
+
+```
+
