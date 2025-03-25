@@ -1,0 +1,274 @@
+---
+title: "Question 1: EM algorithm"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+header-includes:
+ \usepackage{float}
+ \setlength{\textfloatsep}{0pt}
+ \usepackage{hyperref}
+tables: true
+colorlinks: true
+linkcolor: red
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r include=FALSE}
+emalg3 <- function(dat, eps=0.000001){
+  n      <- length(dat)
+  pi     <- matrix(NA, n, 3)  # initialize matrix for prob. to belong to each group
+  
+  # define reasonable starting values for parameters
+  p1     <- 1/3               # starting values for mixing parameters
+  p2     <- 1/3
+  p3     <- 1/3
+  sigma1 <- sd(dat)*2/3       # starting value for standard deviation
+  sigma2 <- sigma1
+  sigma3 <- sigma1
+  mu1    <- mean(dat) - (sigma1 / 2)
+  mu2    <- mean(dat)
+  mu3    <- mean(dat) + (sigma1 / 2)
+  pv     <- c(p1, p2, p3, mu1, mu2, mu3, sigma1, sigma2, sigma3)  # parameter vector
+  delta <- 1e-8  # Small constant to prevent division by zero or zero sd
+  
+  it <- 1                
+  history <- list()       
+  
+  cc     <- eps + 100          # initialize convergence criterion
+  while (cc > eps){
+    pv1  <- pv                 # save previous parameter vector
+    
+    history[[it]] <- c(it, pv)
+    
+    ### E step ###
+    for (j in 1:n){
+      pi1   <- p1 * dnorm(dat[j], mean=mu1, sd=sigma1 + delta)
+      pi2   <- p2 * dnorm(dat[j], mean=mu2, sd=sigma2 + delta)
+      pi3   <- p3 * dnorm(dat[j], mean=mu3, sd=sigma3 + delta)
+      
+      denom <- pi1 + pi2 + pi3
+      
+      pi[j,] <- c(pi1, pi2, pi3) / denom
+      
+    }
+    
+    ### M step ###
+    p1     <- mean(pi[, 1])
+    p2     <- mean(pi[, 2])
+    p3     <- mean(pi[, 3])
+    mu1    <- sum(pi[, 1] * dat) / (p1 * n)
+    mu2    <- sum(pi[, 2] * dat) / (p2 * n)
+    mu3    <- sum(pi[, 3] * dat) / (p3 * n)
+    sigma1 <- sqrt(sum(pi[, 1] * (dat - mu1)^2) / (p1 * n))
+    sigma2 <- sqrt(sum(pi[, 2] * (dat - mu2)^2) / (p2 * n))
+    sigma3 <- sqrt(sum(pi[, 3] * (dat - mu3)^2) / (p3 * n))
+    ######
+    
+    pv <- c(p1, p2, p3, mu1, mu2, mu3, sigma1, sigma2, sigma3)
+
+    delta <- 1e-8  # Small constant to prevent division by zero
+    rel_diff <- (abs(pv - pv1)) / (abs(pv1) + delta)
+    cc <- sum(rel_diff^2)
+    
+    it <- it + 1
+    
+  }
+  
+  # Convert history to a data frame
+  history <- as.data.frame(do.call(rbind, history))
+  colnames(history) <- c("Iteration", "p1", "p2", "p3", "mu1", "mu2", "mu3", "sigma1", "sigma2", "sigma3")
+
+  history
+}
+```
+
+## EM algorithm with three components
+
+The provided EM algorithm `emalg.r` was modified to support $3$ mixture components. 
+A summary of the changes is given below:
+
+* The `pi` variable is now a $(n \times 3)$ matrix containing the probability to belong to each group.
+* Three (instead of two) starting values for each set of parameters: mixing probabilities, means and standard deviations.
+* A third component was added in the E-step: `p3 * dnorm(dat[j], mean=mu3, sd=sigma3)`
+* Probabilities are normalized according to $p_i = \frac{p_i}{p1 + p_2 + p_3}$.
+* The M-step updates the new parameters according to:
+
+```r
+p3     <- mean(pi[, 3])
+mu3    <- sum(pi[, 3] * dat) / (p3 * n)
+sigma3 <- sqrt(sum(pi[, 3] * (dat - mu3)^2) / (p3 * n))
+```
+
+## Scale-invariant convergence criterion
+
+For the scale-invariant convergence criterion, we consider the sum of the relative differences for each parameter. That is,
+
+$$
+cc = \sum \frac{|\theta_{new} - \theta_{old}|}{|\theta_{old}|}
+$$
+where the summation is taken over all components. 
+
+
+## `threepops.Rdata`
+
+Next, we fit the a Gaussian Mixture Model to the provided data in
+`threepops.Rdata`. A histogram of this dataset is shown below.
+
+```{r fig.height=2, fig.width=2.5, fig.align="center", fig.cap="Histogram of `threepops.Rdata`", echo=FALSE}
+load("threepops.Rdata")
+x <- dat3p
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+hist(x, probability = FALSE, breaks = 10, col = "gray", main = "")
+```
+
+The parameter estimates are:
+
+```{r include=FALSE}
+history <- emalg3(x)
+fitted_params <- tail(history, 1)
+
+# Extract fitted params.
+p <- fitted_params[c("p1", "p2", "p3")]
+mu <- fitted_params[c("mu1", "mu2", "mu3")]
+sigma <- fitted_params[c("sigma1", "sigma2", "sigma3")]
+
+# Unlist
+p <- as.vector(unlist(p))
+mu <- as.vector(unlist(mu))
+sigma <- as.vector(unlist(sigma))
+
+# Create dataframe to display.
+res_df <- data.frame(P = p, MU = mu, SIGMA = sigma)
+colnames(res_df) <- c("$\\pi$", "$\\mu$", "$\\sigma$")
+```
+
+```{r echo=FALSE}
+knitr::kable(
+  res_df,
+  caption = "Fitted parameters for each component",
+  row.names = TRUE
+)
+```
+## Parameter versus the iteration-number
+
+
+
+```{r echo=FALSE}
+
+colnames(history) <- c("Iteration",
+                      expression(pi[1]), 
+                      expression(pi[2]), 
+                      expression(pi[3]), 
+                      expression(mu[1]), 
+                      expression(mu[2]), 
+                      expression(mu[3]), 
+                      expression(sigma[1]), 
+                      expression(sigma[2]), 
+                      expression(sigma[3]))
+
+
+
+par(mfrow = c(3, 3), mar = c(2, 2, 2, 1), mgp = c(1.5, 0.5, 0))
+# Loop through each parameter and plot
+for (i in 2:ncol(history)) {  # Skipping the iteration column
+  plot(history$Iteration, history[[i]], type = "l", 
+       main = colnames(history)[i], xlab = "Iteration", ylab = "Value", cex.main = 0.9, cex.lab = 0.8, cex.axis = 0.7)
+}
+
+# Reset plotting parameters
+par(mfrow = c(1, 1)) 
+
+
+```
+
+
+All of them converge to the value shown in table 1.
+
+
+## Appendix
+
+```r
+emalg3 <- function(dat, eps=0.000001){
+  n      <- length(dat)
+  pi     <- matrix(NA, n, 3)  # initialize matrix for prob. to belong to each group
+  
+  # define reasonable starting values for parameters
+  p1     <- 1/3               # starting values for mixing parameters
+  p2     <- 1/3
+  p3     <- 1/3
+  sigma1 <- sd(dat)*2/3       # starting value for standard deviation
+  sigma2 <- sigma1
+  sigma3 <- sigma1
+  mu1    <- mean(dat) - (sigma1 / 2)
+  mu2    <- mean(dat)
+  mu3    <- mean(dat) + (sigma1 / 2)
+  pv     <- c(p1, p2, p3, mu1, mu2, mu3, sigma1, sigma2, sigma3)  # parameter vector
+  delta <- 1e-8  # Small constant to prevent division by zero or zero sd
+  
+  it <- 1                
+  history <- list()       
+  
+  cc     <- eps + 100          # initialize convergence criterion
+  while (cc > eps){
+    pv1  <- pv                 # save previous parameter vector
+    
+    history[[it]] <- c(it, pv)
+    
+    ### E step ###
+    for (j in 1:n){
+      pi1   <- p1 * dnorm(dat[j], mean=mu1, sd=sigma1 + delta)
+      pi2   <- p2 * dnorm(dat[j], mean=mu2, sd=sigma2 + delta)
+      pi3   <- p3 * dnorm(dat[j], mean=mu3, sd=sigma3 + delta)
+      
+      denom <- pi1 + pi2 + pi3
+      
+      pi[j,] <- c(pi1, pi2, pi3) / denom
+      
+    }
+    
+    ### M step ###
+    p1     <- mean(pi[, 1])
+    p2     <- mean(pi[, 2])
+    p3     <- mean(pi[, 3])
+    mu1    <- sum(pi[, 1] * dat) / (p1 * n)
+    mu2    <- sum(pi[, 2] * dat) / (p2 * n)
+    mu3    <- sum(pi[, 3] * dat) / (p3 * n)
+    sigma1 <- sqrt(sum(pi[, 1] * (dat - mu1)^2) / (p1 * n))
+    sigma2 <- sqrt(sum(pi[, 2] * (dat - mu2)^2) / (p2 * n))
+    sigma3 <- sqrt(sum(pi[, 3] * (dat - mu3)^2) / (p3 * n))
+    ######
+    
+    pv <- c(p1, p2, p3, mu1, mu2, mu3, sigma1, sigma2, sigma3)
+
+    delta <- 1e-8  # Small constant to prevent division by zero
+    rel_diff <- (abs(pv - pv1)) / (abs(pv1) + delta)
+    cc <- sum(rel_diff^2)
+    
+    it <- it + 1
+    
+  }
+  
+  # Convert history to a data frame
+  history <- as.data.frame(do.call(rbind, history))
+  colnames(history) <- c("Iteration", "p1", "p2", "p3", "mu1", "mu2", "mu3", "sigma1", "sigma2", "sigma3")
+
+  history
+}
+
+
+# Fit to `threepops.Rdata` and histogram.
+load("threepops.Rdata")
+x <- dat3p
+par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
+hist(x, probability = FALSE, breaks = 10, col = "gray", main = "")
+history <- emalg3(x)
+```
+
+

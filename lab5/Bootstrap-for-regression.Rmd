@@ -1,0 +1,202 @@
+---
+title: "Question 1: Bootstrap for regression"
+output:
+  pdf_document: 
+    keep_tex: true
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+tables: true
+header-includes:
+ \usepackage{float}
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+library(boot)
+library(knitr)
+```
+
+```{r include=FALSE}
+#' Get coefficient
+#'A function that returns the coefficient of interest from the data.
+#' @param data Entire data frame
+#' @param i  Resampled row indices
+#'
+#' @returns Beta2 of formula
+boot_func <- function(data, i){
+  data_boot <- data[i, ]
+  model <- lm(data_boot$X215.5 ~ I(data_boot$X0.000^2) + I(data_boot$X0.000^3))
+  return(coef(model)[2])
+}
+```
+
+First we fit a cubic regression model: $$
+y = \beta_0+\beta_1x+\beta_2x^2+\beta_3x^3+\epsilon
+$$ then we check the significant level for each parameter beta:
+
+```{r echo=FALSE}
+data <- read.table("kresseertrag.dat", header = TRUE, sep = "", stringsAsFactors = FALSE)
+x = data$X0.000
+y = data$X215.5
+regression_model <- lm(y ~ x + I(x^2) + I(x^3),data = data)
+summary(regression_model)
+```
+
+From *Coefficients* part, the p_value of term $x$ is not significant
+enough. So this term will be removed, the final formula is: $$
+y = \beta_0+\beta_2x^2+\beta_3x^3+\epsilon
+$$ with R-function `lm`, the estimated coefficients in the model
+together with their 95%-confidence intervals is:
+
+```{r echo=FALSE}
+final_model <- lm(y ~ I(x^2) + I(x^3),data = data)
+pred <- predict(final_model) 
+confint(final_model, level = 0.95)
+```
+
+The plot of yield vs. concentration and the regression curve is shown
+below:
+
+```{r,fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+plot(x,y, xlab = "Concentration", 
+     ylab = "Yield",
+     main = "Yield vs. Concentration with Fitted Curve")
+lines(x, pred, col = "blue", lwd = 2)
+```
+
+Next, we choose to derive a 95%-confidence interval for $\beta_2$ with
+our own bootstrap program, the histogram with bootstrap distribution for
+$\beta_2$ is:
+
+```{r,fig.height=4, fig.width=5, fig.align="center",echo=FALSE}
+set.seed(12345) 
+B <- 10000
+n <- nrow(data)
+
+beta2_boot <- numeric(B)
+
+for (i in 1:B) {
+  sample_id <- sample(1:n, size = n, replace = TRUE)
+  data_boot <- data[sample_id, ]
+  x = data_boot$X0.000
+  y = data_boot$X215.5
+  model_boot <- lm(y ~ I(x^2) + I(x^3), data = data_boot)
+  
+  beta2_boot[i] <- coef(model_boot)[2]
+}
+
+hist(beta2_boot, breaks = 30, main = "Bootstrap distribution of beta_2",
+     xlab = "beta_2 estimates")
+```
+
+With this distribution, the 95%-confidence interval for $\beta_2$ is:
+
+```{r echo=FALSE}
+beta2_boot_sort <- sort(beta2_boot)
+ci95 <- c(beta2_boot_sort[round(B*0.025)],beta2_boot_sort[round(B*0.975)])
+ci95
+```
+
+For comparison, we derive a 95%-confidence interval for $\beta_2$ with R
+package `boot`.
+
+```{r include=FALSE}
+get_boot <- boot(data = data, statistic = boot_func, R = 10000)
+boot.ci(get_boot, type = "perc")
+cat("\n")
+boot.ci(get_boot, type = "bca")
+```
+
+The following table shows the results obtained in three different ways.
+
+```{r echo=FALSE}
+results <- data.frame(
+  CI = c("(-230.3, -81.7)", "(-222.7, -87.2)", 
+         "(-222.3, -85.4)", "(-221.8, -84.9)"),
+  Width = c(148.6,135.5,136.9,136.9),
+  row.names = c("lm", "customed_bootstrap", 
+                "bootstrap_per", "bootstrap_BCa")
+)
+kable(results)
+```
+
+**Observation and Conclusion**
+
+-   Bootstrap method has narrower confidence intervals than `lm`
+    confidence intervals:
+
+    It illustrates that the `lm` method may be too conservative and
+    overestimate the uncertainty.
+
+-   The customized bootstrap method has the narrowest CI:
+
+    This shows that this manual Bootstrap may have stronger convergence, or the boot package method used introduces some additional adjustments, making the CI slightly wider.
+    
+-   The results of `bootstrap_per` and `bootstrap_BCa` are basically the same:
+
+    This indicates that the skewness and bias problems in the data are not serious, because if the data is skewed, the CI of the BCa method will be adjusted more than that of the percentile method.
+    
+## Appendix
+
+```{r,  echo=TRUE, eval=FALSE}
+#' Get coefficient
+#'A function that returns the coefficient of interest from the data.
+#' @param data Entire data frame
+#' @param i  Resampled row indices
+#'
+#' @returns Beta2 of formula
+boot_func <- function(data, i){
+  data_boot <- data[i, ]
+  model <- lm(data_boot$X215.5 ~ I(data_boot$X0.000^2) + I(data_boot$X0.000^3))
+  return(coef(model)[2])
+}
+
+data <- read.table("kresseertrag.dat", header = TRUE, sep = "", stringsAsFactors = FALSE)
+x = data$X0.000
+y = data$X215.5
+regression_model <- lm(y~poly(x,3,raw = TRUE),data = data)
+summary(regression_model)
+model_reduced <- lm(y ~ I(x^2) + I(x^3) , data = data)
+summary(model_reduced)
+final_model <- model_reduced
+pred <- predict(final_model) 
+confint(final_model, level = 0.95)
+
+plot(x,y, xlab = "Concentration", 
+     ylab = "Yield",
+     main = "Yield vs. Concentration with Fitted Curve")
+lines(x, pred, col = "blue", lwd = 2)
+
+#  95%-Bootstrap Confidence Interval (manual)
+
+set.seed(12345) 
+B <- 10000
+n <- nrow(data)
+
+beta2_boot <- numeric(B)
+
+for (i in 1:B) {
+  sample_id <- sample(1:n, size = n, replace = TRUE)
+  data_boot <- data[sample_id, ]
+  x = data_boot$X0.000
+  y = data_boot$X215.5
+  model_boot <- lm(y ~ I(x^2) + I(x^3), data = data_boot)
+  
+  beta2_boot[i] <- coef(model_boot)[2]
+}
+
+hist(beta2_boot, breaks = 30, main = "Bootstrap distribution of beta_2",
+     xlab = "beta_2 estimates")
+beta2_boot_sort <- sort(beta2_boot)
+ci95 <- c(beta2_boot_sort[round(B*0.025)],beta2_boot_sort[round(B*0.975)])
+
+#  95%-Bootstrap Confidence Interval (boot)
+library(boot)
+
+get_boot <- boot(data = data, statistic = boot_func, R = 10000)
+boot.ci(get_boot, type = "perc")
+boot.ci(get_boot, type = "bca")
+```
+

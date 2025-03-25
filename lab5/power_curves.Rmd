@@ -18,6 +18,7 @@ linkcolor: red
 
 ```{r include=FALSE}
 library(BSDA)
+library(latex2exp)
 ```
 
 
@@ -71,18 +72,20 @@ curve(dgumbel(x), add = TRUE, col = "red", lwd = 2)
 
 ## Power of the Sign test
 
-Let $X_1, \dots, X_n$ be a random sample of size $n$ with median $M$. We aim to investigate the power (i.e., probability of rejecting $H_0$) of the Sign test for:
+Let $X_1, \dots, X_n$ be a random sample of size $n$ with median $M$. We aim to investigate the power (i.e., probability of rejecting $H_0$ given $H_a$) of the Sign test for:
 
 $$
 H_0: M = 0 \quad \text{versus} \quad H_a: M > 0
 $$
 
 
-To do so, rather than deriving power analytically, we estimate the power by drawing $n$ samples from any proposal distribution with $M > 0$ (i.e., under $H_a$) and computing the rejection rate over $s$ repetitions. To generate the power curve, this procedure is repeated for multiple values of $M$. The following plot shows the
-results from this experiment using the Gumbel distribution with $\mu = M + \log(\log2)$ and $\beta=1$ as the proposal.
+To do so, rather than deriving power analytically, we estimate the power by drawing $n$ samples from any proposal distribution with $M > 0$ (i.e., under $H_a$) and computing the rejection rate over $s$ repetitions. To generate the power curve, this procedure is repeated for multiple values of $M$. Furthermore, we can think of this setup as counting the number $Y$ of successes (rejections) in a sample of size $s$. That is, $Y \sim \text{Bin}(s, p)$, where the parameter $p$ is the true rejection rate. Hence, the estimate of $p$, the fraction of tests that where rejected, is
 
+$$
+\hat{p} = \frac{Y}{s}
+$$
 
-
+The following plot shows the results from this experiment using the Gumbel distribution with $\mu = M + \log(\log2)$ and $\beta=1$ as the proposal for multiple values of $M$.
 
 ```{r include=FALSE}
 
@@ -113,11 +116,47 @@ for (i in 1:length(M)) {
 ```
 
 ```{r, fig.height=2, fig.width=4, fig.align="center", fig.cap="Power curve of the sign test using Gumbell as proposal.",  echo=FALSE}
-par(mar = c(3, 3, 1, 1))  # Adjust margins: c(bottom, left, top, right)
-plot(M, P, type = "o", col = "blue", xlab = "Median (M)", ylab = "Power")
+par(mar = c(4, 5, 2, 2))  # Adjust margins: c(bottom, left, top, right)
+plot(M, P, type = "o", col = "blue", xlab = "Median (M)", ylab = TeX(r'(Power $\left(\hat{p}\right)$)'))
 ```
 
 As expected, the Type 2 error (probability of accepting $H_0$ given $H_0$ is false) decreases as $M$ moves further from 0. In other words, the evidence *against* $M = 0$ strengthens as $M$ increases and, by $M = 0.7$, we reject $H_0$ more often than not.
+
+
+How much faith can we place in these values? We know $\hat{p}$ is unbiased and that is distributed normally for large $s$ (the sample size). Therefore, from the Empirical Rule, 
+
+$$
+P(|\hat{p} - p| < 2\sigma_{\hat{p}}) \approx 0.95
+$$
+
+In other words, the probability that the error of estimation is less than $2\sigma_{\hat{p}}$ is approximately $.95$. The following tables shows the values of $2\sigma_{\hat{p}}$ for selected values of $M$ in our experiment where $\sigma_{\hat{p}} = \sqrt{\frac{p(1-p)}{s}} \approx \sqrt{\frac{\hat{p}(1-\hat{p})}{s}}$.
+
+
+```{r include=FALSE}
+sdp <- function(p, s) sqrt(p * (1 - p) / s) 
+SD <- 2 * sapply(P, sdp, s = s)
+idx <- sort(sample(1:length(SD), 5))
+```
+
+
+```{r echo=FALSE}
+sdDf <- round(data.frame(M = M[idx], P = P[idx], SD = SD[idx]), 3)
+
+mval <- sdDf[3, 1]
+pval <- sdDf[3, 2]
+sval <- sdDf[3, 3]
+
+colnames(sdDf) <- c("$M$", "$\\hat{p}$", "$2\\sigma_{\\hat{p}}$")
+knitr::kable(sdDf, row.names = TRUE)
+```
+
+
+
+
+
+We can then say, for example, that for $M = `r mval`$ the probability that the error of the estimate is less than $`r sval`$ is approximately $.95$. Said differently, we can be reasonably confident that our estimate, $`r pval`$, is within $`r sval`$ of the true value of $p$, the true rejection rate.
+
+
 
 ## Appendix
 
@@ -157,6 +196,13 @@ for (i in 1:length(M)) {
   
   P[i] <- count / s
 }
+
+
+# --- PRECISION ---
+sdp <- function(p, s) sqrt(p * (1 - p) / s) 
+SD <- 2 * sapply(P, sdp, s = s)
+idx <- sort(sample(1:length(SD), 5))
+sdDf <- round(data.frame(M = M[idx], P = P[idx], SD = SD[idx]), 3)
 ```
 
 
